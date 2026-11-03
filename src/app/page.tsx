@@ -655,10 +655,10 @@ export default function DashboardPage() {
         onLogout={handleLogout}
       />
 
-      <SidebarInset className="fs-night">
+      <SidebarInset className="fs-night bg-transparent">
         {/* Top Header */}
         <header className={activeNav === "gram"
-          ? "sticky top-0 z-20 flex h-12 shrink-0 items-center border-b border-white/10 bg-[#07080c] px-3"
+          ? "sticky top-0 z-20 flex h-12 shrink-0 items-center border-b border-white/10 bg-[#07080c]/80 backdrop-blur px-3"
           : "sticky top-0 z-20 flex h-14 shrink-0 items-center justify-between border-b border-zinc-200/80 bg-white px-6"}>
           <div className="flex items-center gap-3">
             <SidebarTrigger className={activeNav === "gram" ? "text-white" : "text-zinc-700 hover:text-zinc-950"} />

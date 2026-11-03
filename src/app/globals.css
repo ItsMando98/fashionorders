@@ -75,7 +75,8 @@
 /* The order screens still use zinc utilities. Inside .fs-night those
    utilities follow the same night tokens, so the workspace matches the hero. */
 .fs-night {
-  background-color: #07080c;
+  /* Transparent, damit der WebGL-Shader-Hintergrund durchscheint. */
+  background-color: transparent;
   color: #f4f4f5;
 }
 .fs-night .bg-white {

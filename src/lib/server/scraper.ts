@@ -357,8 +357,14 @@ export async function scrapeAnyUrl(url: string, cnyToEur: number = 0.13) {
     const albumId = albumMatch ? albumMatch[1] : urlHash;
 
     try {
+      // Yupoo-Albumseiten liefern 404 auf plain GETs ohne ?uid=1
+      // (verifiziert 2026-11). Gespeicherte source_url bleibt ohne uid.
+      const fetchUrl =
+        /\/albums\/\d+/i.test(cleanUrl) && !/[?&]uid=/.test(cleanUrl)
+          ? `${cleanUrl}${cleanUrl.includes("?") ? "&" : "?"}uid=1`
+          : cleanUrl;
       const res = await fetchAllowed(
-        cleanUrl,
+        fetchUrl,
         {
           "User-Agent": USER_AGENT,
           Referer: `https://${parsed.host}/`,

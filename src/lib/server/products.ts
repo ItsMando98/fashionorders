@@ -1,7 +1,8 @@
 import { desc, eq, and, ilike, or, sql } from "drizzle-orm";
 import { db, ensureDb, products } from "./db";
 import type { ProductRow } from "./schema";
-import { scrapeAnyUrl } from "./scraper";
+import { scrapeAnyUrl, downloadAndCacheThumbnail } from "./scraper";
+import { categorizeProductImage, geminiEnabled } from "./categorize";
 import { getFeeSettings, priceLine } from "./pricing";
 import { PublicError } from "./http";
 import type { AdminProduct, PublicProduct, User, FeeSettings } from "@/lib/types";
@@ -26,6 +27,8 @@ export function toPublicProduct(row: ProductRow, feeSettings: FeeSettings, membe
     image_url: row.imageUrl || "",
     local_image: row.localImage || "",
     source_platform: row.sourcePlatform || "Yupoo",
+    gender: row.gender || "",
+    subcategory: row.subcategory || "",
     active: row.active,
     created_at: row.createdAt,
   };
@@ -38,6 +41,7 @@ export function toAdminProduct(row: ProductRow, feeSettings: FeeSettings, member
     seller: row.seller || "",
     source_url: row.sourceUrl || "",
     weidian_url: row.weidianUrl || "",
+    ai_status: row.aiStatus || "",
   };
 }
 
@@ -109,10 +113,77 @@ export async function scrapeToProduct(url: string, sellerOverride?: string): Pro
   return inserted;
 }
 
+// ---------------------------------------------------------------------------
+// Per-Foto-Produkte: ein Foto aus einem Seller-Album wird EIN Produkt.
+// source_url = "<albumUrl>#<photoId>" (dedupe-stabil, im Seller-Sheet lesbar).
+// ---------------------------------------------------------------------------
+export interface PhotoProductInput {
+  albumUrl: string; // z.B. https://seller.x.yupoo.com/albums/123
+  photoUrl: string; // z.B. https://photo.yupoo.com/seller/hash/abc.jpg
+  photoId: string; // stabiler Teil aus photoUrl (letztes Pfadsegment)
+  albumTitle: string; // Kontext fuer Fallback-Titel
+  seller: string;
+}
+
+export async function upsertPhotoProduct(input: PhotoProductInput): Promise<{ row: ProductRow; created: boolean }> {
+  await ensureDb();
+  const sourceUrl = `${input.albumUrl}#${input.photoId}`;
+  const nowUtc = () => new Date().toISOString().slice(0, 19).replace("T", " ");
+
+  const existing = (await db.select().from(products).where(eq(products.sourceUrl, sourceUrl)))[0];
+  // Schon kategorisiert -> nichts tun (Kosten sparen, Daten stabil)
+  if (existing && existing.aiStatus === "ok") return { row: existing, created: false };
+
+  // 1) Foto analysieren (nur wenn Gemini-Key gesetzt; sonst pending)
+  const ai = geminiEnabled() ? await categorizeProductImage(input.photoUrl, input.albumUrl) : null;
+
+  // 2) Foto lokal cachen (wie beim klassischen Scrape)
+  let localImage = existing?.localImage || "";
+  if (!localImage) {
+    try {
+      localImage = await downloadAndCacheThumbnail(
+        input.photoUrl,
+        input.albumUrl,
+        `prod_${input.photoId}`
+      );
+    } catch {
+      // Bild-Cache ist nice-to-have, kein Abbruchgrund
+    }
+  }
+
+  const values = {
+    title: (ai?.title || `${input.albumTitle} · ${input.photoId}`).slice(0, 300),
+    brand: ai?.brand || existing?.brand || "—",
+    category: ai?.category || existing?.category || "Apparel / Item",
+    availableSizes: existing?.availableSizes || "Standard Sizes",
+    description: ai?.color ? `Color: ${ai.color}` : existing?.description || "",
+    priceCny: existing?.priceCny ?? null, // Preis pflegt der Admin nach
+    imageUrl: input.photoUrl,
+    localImage,
+    sourcePlatform: "Yupoo",
+    seller: input.seller.slice(0, 120),
+    sourceUrl,
+    weidianUrl: existing?.weidianUrl || "",
+    gender: ai?.gender || existing?.gender || "",
+    subcategory: ai?.subcategory || existing?.subcategory || "",
+    aiStatus: ai ? "ok" : geminiEnabled() ? "error" : "pending",
+    active: existing?.active ?? 1,
+    updatedAt: nowUtc(),
+  };
+
+  if (existing) {
+    const updated = (await db.update(products).set(values).where(eq(products.id, existing.id)).returning())[0];
+    return { row: updated, created: false };
+  }
+  const inserted = (await db.insert(products).values(values).returning())[0];
+  return { row: inserted, created: true };
+}
+
 export interface ProductListQuery {
   search?: string;
   category?: string;
   brand?: string;
+  gender?: string;
   page?: number;
   pageSize?: number;
   includeInactive?: boolean;
@@ -131,6 +202,7 @@ export async function listProducts(q: ProductListQuery): Promise<{ rows: Product
   }
   if (q.category) conditions.push(eq(products.category, q.category));
   if (q.brand) conditions.push(eq(products.brand, q.brand));
+  if (q.gender) conditions.push(eq(products.gender, q.gender));
 
   const where = conditions.length > 0 ? and(...conditions) : undefined;
 

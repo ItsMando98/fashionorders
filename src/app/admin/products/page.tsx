@@ -448,6 +448,7 @@ export default function AdminProductsPage() {
                 <tr className="border-b border-border text-left text-muted-foreground">
                   <th className="p-3 font-medium">Product</th>
                   <th className="p-3 font-medium">Brand</th>
+                  <th className="p-3 font-medium">AI</th>
                   <th className="p-3 font-medium text-right">CNY</th>
                   <th className="p-3 font-medium text-right">EUR</th>
                   <th className="p-3 font-medium">Seller</th>
@@ -471,6 +472,20 @@ export default function AdminProductsPage() {
                       </div>
                     </td>
                     <td className="p-3">{p.brand}</td>
+                    <td className="p-3">
+                      <span
+                        className={`text-xs px-2 py-0.5 rounded-full border whitespace-nowrap ${
+                          p.ai_status === "ok"
+                            ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30"
+                            : p.ai_status === "error"
+                              ? "bg-red-500/15 text-red-400 border-red-500/30"
+                              : "bg-secondary text-muted-foreground border-border"
+                        }`}
+                        title={p.subcategory ? `${p.category} / ${p.subcategory}` : p.category}
+                      >
+                        {p.ai_status === "ok" ? p.gender || "ok" : p.ai_status || "—"}
+                      </span>
+                    </td>
                     <td className="p-3 text-right">{formatCny(p.price_cny)}</td>
                     <td className="p-3 text-right">{formatEur(p.price_eur)}</td>
                     <td className="p-3 font-mono text-xs">{p.seller || "—"}</td>

@@ -213,6 +213,11 @@ def fetch_yupoo_page(url: str):
     """Plain fetch first, stealth browser fallback when blocked."""
     from scrapling.fetchers import Fetcher
 
+    # Yupoo album detail pages return 404 to plain GETs unless ?uid=1 is set
+    # (verified 2026-11). List pages work fine without it.
+    if re.search(r"/albums/\d+", url) and "uid=" not in url:
+        url += ("&" if "?" in url else "?") + "uid=1"
+
     page = Fetcher.get(
         url,
         impersonate="chrome",

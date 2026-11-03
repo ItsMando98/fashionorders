@@ -90,6 +90,10 @@ export const products = pgTable("products", {
   seller: text("seller").default(""),
   sourceUrl: text("source_url").notNull().default(""),
   weidianUrl: text("weidian_url").default(""),
+  // KI-Kategorisierung (Gemini Vision, anhand des Produktfotos)
+  gender: text("gender").notNull().default(""), // "men" | "women" | "unisex" | ""
+  subcategory: text("subcategory").notNull().default(""),
+  aiStatus: text("ai_status").notNull().default(""), // "" | "pending" | "ok" | "error"
   active: integer("active").notNull().default(1),
   createdAt: text("created_at").notNull().default(nowUtc),
   updatedAt: text("updated_at").notNull().default(nowUtc),

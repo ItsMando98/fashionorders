@@ -38,7 +38,7 @@ export function ShopShell({ children }: { children: React.ReactNode }) {
 
   if (authFailed) {
     return (
-      <div className="min-h-screen bg-background text-foreground flex items-center justify-center">
+      <div className="min-h-screen text-foreground flex items-center justify-center">
         <div className="text-center space-y-4">
           <p className="text-muted-foreground">Please log in to use the shop.</p>
           <Link href="/" className="text-primary underline">
@@ -73,7 +73,7 @@ export function ShopShell({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="min-h-screen text-foreground">
       <header className="sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur">
         <div className="max-w-6xl mx-auto px-4 h-14 flex items-center gap-2">
           <Link href="/shop" className="flex items-center gap-2 mr-4">

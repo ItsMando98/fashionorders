@@ -7,7 +7,7 @@
 import * as cheerio from "cheerio";
 import { desc, eq } from "drizzle-orm";
 import { db, ensureDb, scrapeSources, type ScrapeSourceRow } from "./db";
-import { scrapeToProduct } from "./products";
+import { scrapeToProduct, sellerFromUrl, upsertPhotoProduct } from "./products";
 import type { ScrapeSource } from "@/lib/types";
 
 const USER_AGENT =
@@ -90,8 +90,88 @@ export interface ScrapeRunResult {
   failed: number; // fehlgeschlagen
 }
 
-// Scraped bis zu `limit` Alben eines Sellers in den Produktkatalog.
-// Dedupe laeuft in scrapeToProduct ueber die unique source_url.
+// ---------------------------------------------------------------------------
+// Per-Foto-Modus: JEDES Foto eines Albums wird ein eigenes Produkt und (mit
+// Gemini-Key) per KI benannt + kategorisiert (Gender/Kategorie/Brand).
+// ---------------------------------------------------------------------------
+
+export interface AlbumPhoto {
+  id: string; // stabile ID aus der Foto-URL (Dedupe-Anker)
+  url: string; // volle Foto-URL (photo.yupoo.com)
+}
+
+// Laedt eine Album-Seite und extrahiert Album-Titel + alle Fotos.
+// Yupoo-Albenseiten liefern Fotos als data-origin-src (Full-Res) / data-src.
+export async function extractAlbumPhotos(
+  albumUrl: string,
+  maxPhotos = 50
+): Promise<{ title: string; photos: AlbumPhoto[] }> {
+  // Album-Detailseiten brauchen ?uid=1, sonst 404 (verifiziert 2026-11)
+  const fetchUrl = /[?&]uid=/.test(albumUrl)
+    ? albumUrl
+    : `${albumUrl}${albumUrl.includes("?") ? "&" : "?"}uid=1`;
+  const res = await fetch(fetchUrl, {
+    headers: { "User-Agent": USER_AGENT, Referer: sellerBaseUrl(albumUrl) },
+  });
+  if (!res.ok) throw new Error(`album page HTTP ${res.status}`);
+  const $ = cheerio.load(await res.text());
+
+  const albumId = albumUrl.match(/albums\/(\d+)/)?.[1] || "album";
+  const title =
+    $(".showalbumheader__gallerytitle").first().text().trim() || `Yupoo Album #${albumId}`;
+
+  const photos: AlbumPhoto[] = [];
+  const seen = new Set<string>();
+  $("[data-origin-src], [data-src]").each((_, el) => {
+    // Full-Res bevorzugen; Thumbnails (…/big.jpg, …/square.jpg) ueberspringen
+    const raw = ($(el).attr("data-origin-src") || "").trim() || ($(el).attr("data-src") || "").trim();
+    if (!raw || raw.startsWith("data:")) return;
+    const url = raw.startsWith("//") ? `https:${raw}` : raw;
+    if (!url.includes("photo.yupoo.com")) return;
+    // ID = letzte zwei Pfadsegmente ohne Extension (z.B. "35227535_451e0536")
+    const id = url
+      .split("/")
+      .slice(-2)
+      .join("_")
+      .replace(/\.\w+$/, "")
+      .replace(/[^a-zA-Z0-9_-]/g, "");
+    if (!id || seen.has(id)) return;
+    seen.add(id);
+    photos.push({ id, url });
+  });
+
+  return { title, photos: photos.slice(0, maxPhotos) };
+}
+
+// Scraped EIN Album im Per-Foto-Modus. Gibt die Zahl der Produkte zurueck.
+// Fallback: Album ohne Fotos -> klassischer 1-Album-1-Produkt-Scrape.
+export async function scrapeAlbumToProducts(albumUrl: string): Promise<number> {
+  const { title, photos } = await extractAlbumPhotos(albumUrl);
+  if (photos.length === 0) {
+    await scrapeToProduct(albumUrl);
+    return 1;
+  }
+  const seller = sellerFromUrl(albumUrl);
+  let count = 0;
+  for (const photo of photos) {
+    try {
+      await upsertPhotoProduct({
+        albumUrl,
+        photoUrl: photo.url,
+        photoId: photo.id,
+        albumTitle: title,
+        seller,
+      });
+      count++;
+    } catch (err) {
+      console.warn(`[seller-scraper] photo FAIL ${photo.url} —`, err instanceof Error ? err.message : err);
+    }
+  }
+  return count;
+}
+
+// Scraped bis zu `limit` Alben eines Sellers in den Produktkatalog (Per-Foto-Modus).
+// Dedupe laeuft ueber die unique source_url (album#foto bzw. album).
 export async function scrapeSellerAlbums(sellerUrl: string, limit: number): Promise<ScrapeRunResult> {
   await ensureDb();
   const albumUrls = await collectAlbumUrls(sellerUrl, limit);
@@ -99,8 +179,7 @@ export async function scrapeSellerAlbums(sellerUrl: string, limit: number): Prom
   let failed = 0;
   for (const url of albumUrls) {
     try {
-      await scrapeToProduct(url);
-      added++;
+      added += await scrapeAlbumToProducts(url);
     } catch (err) {
       failed++;
       console.warn(`[seller-scraper] FAIL ${url} —`, err instanceof Error ? err.message : err);

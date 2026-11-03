@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Barlow_Condensed, Plus_Jakarta_Sans, JetBrains_Mono } from "next/font/google";
+import { ShaderBackground } from "@/components/shader-background";
 import "./globals.css";
 
 const sans = Plus_Jakarta_Sans({
@@ -38,7 +39,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${sans.variable} ${display.variable} ${mono.variable} font-sans`}>{children}</body>
+      <body className={`${sans.variable} ${display.variable} ${mono.variable} font-sans`}>
+        <ShaderBackground />
+        {children}
+      </body>
     </html>
   );
 }

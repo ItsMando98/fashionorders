@@ -9,12 +9,20 @@ import type { PublicProduct } from "@/lib/types";
 
 const PAGE_SIZE = 24;
 
+const GENDER_FILTERS = [
+  { value: "", label: "All" },
+  { value: "men", label: "Men" },
+  { value: "women", label: "Women" },
+  { value: "unisex", label: "Unisex" },
+] as const;
+
 export default function ShopPage() {
   const [products, setProducts] = useState<PublicProduct[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
+  const [gender, setGender] = useState("");
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(
@@ -26,6 +34,7 @@ export default function ShopPage() {
           page_size: String(PAGE_SIZE),
         });
         if (search) params.set("search", search);
+        if (gender) params.set("gender", gender);
         const res = await fetch(`/api/products?${params}`);
         if (!res.ok) return;
         const data = await res.json();
@@ -35,7 +44,7 @@ export default function ShopPage() {
         setLoading(false);
       }
     },
-    [search]
+    [search, gender]
   );
 
   useEffect(() => {
@@ -82,6 +91,23 @@ export default function ShopPage() {
           </form>
         </div>
 
+        {/* Gender-Filter (KI-kategorisiert) */}
+        <div className="flex gap-2 flex-wrap">
+          {GENDER_FILTERS.map((f) => (
+            <button
+              key={f.value}
+              onClick={() => setGender(f.value)}
+              className={`px-4 py-1.5 rounded-full text-sm border transition-colors ${
+                gender === f.value
+                  ? "bg-primary text-primary-foreground border-primary"
+                  : "border-border text-muted-foreground hover:border-primary/60"
+              }`}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+
         {products.length === 0 && !loading ? (
           <div className="text-center py-20 text-muted-foreground">
             <p>No products yet.</p>
@@ -110,7 +136,14 @@ export default function ShopPage() {
                   )}
                 </div>
                 <div className="p-3 space-y-1">
-                  <p className="text-xs uppercase tracking-wider text-muted-foreground">{p.brand}</p>
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs uppercase tracking-wider text-muted-foreground truncate">{p.brand}</p>
+                    {p.subcategory && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded border border-border text-muted-foreground whitespace-nowrap">
+                        {p.subcategory}
+                      </span>
+                    )}
+                  </div>
                   <p className="text-sm font-medium line-clamp-2 min-h-[2.5rem]">{p.title}</p>
                   <div className="flex items-baseline gap-2 pt-1">
                     <span className="text-primary font-semibold">{formatEur(p.price_eur)}</span>

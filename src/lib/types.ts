@@ -142,15 +142,18 @@ export interface PublicProduct {
   image_url: string;
   local_image: string;
   source_platform: string;
+  gender: string; // "men" | "women" | "unisex" | ""
+  subcategory: string;
   active: number;
   created_at: string;
 }
 
-// Admin-Sicht: zusaetzlich Seller + Quell-URLs.
+// Admin-Sicht: zusaetzlich Seller + Quell-URLs + KI-Status.
 export interface AdminProduct extends PublicProduct {
   seller: string;
   source_url: string;
   weidian_url: string;
+  ai_status: string; // "" | "pending" | "ok" | "error"
 }
 
 export interface CartLine {

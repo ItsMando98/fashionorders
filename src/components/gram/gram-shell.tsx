@@ -79,7 +79,7 @@ export function GramShell() {
   ];
 
   return (
-    <div className="flex h-[calc(100vh-3rem)] w-full bg-background text-foreground">
+    <div className="flex h-[calc(100vh-3rem)] w-full text-foreground">
       {/* Desktop sidebar */}
       <aside className="hidden w-[220px] shrink-0 flex-col border-r border-border md:flex">
         <button
@@ -195,7 +195,7 @@ export function GramShell() {
         </main>
 
         {/* Mobile bottom nav */}
-        <nav className="flex shrink-0 border-t border-border bg-background md:hidden">
+        <nav className="flex shrink-0 border-t border-border bg-background/70 backdrop-blur md:hidden">
           {navItems
             .filter((item) => item.id !== "messages")
             .map((item) => (

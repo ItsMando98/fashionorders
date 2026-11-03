@@ -22,6 +22,7 @@ export async function GET(request: Request) {
       search: url.searchParams.get("search") || undefined,
       category: url.searchParams.get("category") || undefined,
       brand: url.searchParams.get("brand") || undefined,
+      gender: url.searchParams.get("gender") || undefined,
       page: parseInt(url.searchParams.get("page") || "1", 10),
       pageSize: parseInt(url.searchParams.get("page_size") || "24", 10),
       includeInactive: isAdmin && url.searchParams.get("include_inactive") === "1",

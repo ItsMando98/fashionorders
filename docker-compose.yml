@@ -7,6 +7,9 @@ services:
       DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD}@supabase-db:5432/postgres
       FASHION_ORDERS_CACHE: /data/cache
       RESEND_API_KEY: ${RESEND_API_KEY}
+      SCRAPER_SIDECAR_URL: http://scraper:8100
+      SCRAPER_TOKEN: ${SCRAPER_TOKEN}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       RESEND_FROM: ${RESEND_FROM:-Fashion Supply <onboarding@fashion-supply.store>}
     volumes:
       - ./data:/data
@@ -15,6 +18,14 @@ services:
     networks:
       - default
       - supabase
+
+  scraper:
+    build: ./scraper_service
+    restart: unless-stopped
+    environment:
+      SCRAPER_TOKEN: ${SCRAPER_TOKEN}
+    expose:
+      - "8100"
 
   caddy:
     image: caddy:2

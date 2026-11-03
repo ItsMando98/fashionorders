@@ -114,6 +114,9 @@ export async function ensureSchema(sql: Sql) {
       seller TEXT DEFAULT '',
       source_url TEXT NOT NULL DEFAULT '',
       weidian_url TEXT DEFAULT '',
+      gender TEXT NOT NULL DEFAULT '',
+      subcategory TEXT NOT NULL DEFAULT '',
+      ai_status TEXT NOT NULL DEFAULT '',
       active INTEGER NOT NULL DEFAULT 1,
       created_at TEXT NOT NULL DEFAULT (${NOW_UTC}),
       updated_at TEXT NOT NULL DEFAULT (${NOW_UTC})
@@ -313,6 +316,10 @@ export async function ensureSchema(sql: Sql) {
   await ensureColumn(sql, "items", "is_shared", "INTEGER NOT NULL DEFAULT 0");
   await ensureColumn(sql, "items", "custom_fee_fixed_eur", "DOUBLE PRECISION");
   await ensureColumn(sql, "items", "custom_fee_percent", "DOUBLE PRECISION");
+  // KI-Kategorisierung fuer bestehende Produkttabellen
+  await ensureColumn(sql, "products", "gender", "TEXT NOT NULL DEFAULT ''");
+  await ensureColumn(sql, "products", "subcategory", "TEXT NOT NULL DEFAULT ''");
+  await ensureColumn(sql, "products", "ai_status", "TEXT NOT NULL DEFAULT ''");
 
   await sql.unsafe(
     "CREATE UNIQUE INDEX IF NOT EXISTS users_email_unique ON users(email) WHERE email IS NOT NULL"
