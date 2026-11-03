@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar, NavSection } from "@/components/app-sidebar";
+import { ShaderBackground } from "@/components/shader-background";
 import { AuthCard } from "@/components/auth-card";
 import { FashionGramStudio } from "@/components/fashiongram-studio";
 import { PasswordDialog } from "@/components/password-dialog";
@@ -655,7 +656,10 @@ export default function DashboardPage() {
         onLogout={handleLogout}
       />
 
-      <SidebarInset className="fs-night bg-[#07080c]/60 backdrop-blur-md">
+      <SidebarInset className="fs-night relative bg-[#07080c]/60 backdrop-blur-md">
+        {/* WebGL-Shader nur innerhalb des Shell-Panels (absolute, -z-10
+            hinter Header/Content, rounded-xl passend zum Panel). */}
+        <ShaderBackground className="pointer-events-none absolute inset-0 -z-10 h-full w-full rounded-xl" />
         {/* Top Header */}
         <header className={activeNav === "gram"
           ? "shell-reveal-header sticky top-0 z-20 flex h-12 shrink-0 items-center rounded-t-xl border-b border-white/10 bg-[#07080c]/80 backdrop-blur px-3"

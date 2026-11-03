@@ -33,7 +33,8 @@ export interface AiCategorization {
   color: string;
 }
 
-const GEMINI_MODEL = "gemini-2.5-flash";
+// Aktuelles Flash-Modell (2.5 ist fuer neue API-Keys nicht mehr verfuegbar)
+const GEMINI_MODEL = "gemini-3.8-flash";
 const FETCH_HEADERS = {
   "User-Agent":
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",

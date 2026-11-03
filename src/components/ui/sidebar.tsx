@@ -44,7 +44,9 @@ export function Sidebar({ className, children }: { className?: string; children:
       className={cn(
         // group/sidebar ermoeglicht Collapsed-Styling in Kind-Elementen,
         // shell-reveal-sidebar ist die Shopify-artige Einblend-Animation.
-        "group/sidebar shell-reveal-sidebar sticky top-0 flex h-screen flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground transition-all duration-300 ease-in-out shrink-0 select-none",
+        // Floating Panel passend zum Inset (dashboard-1): eigene Margin,
+        // runde Ecken, voller Rahmen — der Shader bleibt im Content-Panel.
+        "group/sidebar shell-reveal-sidebar sticky top-2 m-2 mr-0 flex h-[calc(100vh-1rem)] flex-col rounded-xl border border-white/10 bg-sidebar text-sidebar-foreground transition-all duration-300 ease-in-out shrink-0 select-none",
         // dashboard-1: kollabiert zu einer Icon-Rail statt komplett zu verschwinden.
         open ? "w-64" : "w-16 overflow-x-hidden",
         className
@@ -117,7 +119,7 @@ export function SidebarInset({ className, children }: { className?: string; chil
       className={cn(
         // dashboard-1 "inset": der Inhalt schwimmt als abgerundetes Panel
         // mit Margin ueber dem Shell-Hintergrund (hier: ueber dem Shader).
-        "flex flex-1 flex-col min-w-0 m-2 ml-0 min-h-[calc(100vh-1rem)] rounded-xl border border-white/10 shadow-2xl",
+        "flex flex-1 flex-col min-w-0 m-2 min-h-[calc(100vh-1rem)] rounded-xl border border-white/10 shadow-2xl",
         className
       )}
     >

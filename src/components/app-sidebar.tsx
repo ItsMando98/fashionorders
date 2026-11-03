@@ -66,7 +66,7 @@ export function AppSidebar({
   const isAdmin = user.role === "admin";
 
   return (
-    <Sidebar className="border-r border-white/10 bg-[#07080c] text-zinc-300">
+    <Sidebar className="bg-[#07080c]/85 backdrop-blur-md text-zinc-300">
       {/* 1. Header with Logo & Workspace Title matching Image 1 */}
       <SidebarHeader className="shell-reveal-item border-b border-white/10 px-4 py-4">
         <div className="fs-side-header flex items-center gap-3">

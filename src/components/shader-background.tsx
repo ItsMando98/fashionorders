@@ -298,8 +298,14 @@ function compileShader(gl: WebGLRenderingContext, type: number, source: string) 
 }
 
 // Animated WebGL background ("Mesh drift" blobs). Renders a fullscreen
-// triangle in a plain WebGL1 context, mounted fixed behind the app content.
-export function ShaderBackground() {
+// triangle in a plain WebGL1 context. Positioning is per className:
+// fixed (Standard, fuellt den Viewport) oder absolute (fuellt den
+// naechsten positionierten Vorfahren, z.B. das Inset-Panel der Shell).
+export function ShaderBackground({
+  className = "pointer-events-none fixed inset-0 -z-10 h-full w-full",
+}: {
+  className?: string;
+}) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -434,11 +440,5 @@ export function ShaderBackground() {
     };
   }, []);
 
-  return (
-    <canvas
-      ref={canvasRef}
-      aria-hidden="true"
-      className="pointer-events-none fixed inset-0 -z-10 h-full w-full"
-    />
-  );
+  return <canvas ref={canvasRef} aria-hidden="true" className={className} />;
 }

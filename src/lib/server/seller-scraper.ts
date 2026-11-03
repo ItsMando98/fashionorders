@@ -128,6 +128,9 @@ export async function extractAlbumPhotos(
     if (!raw || raw.startsWith("data:")) return;
     const url = raw.startsWith("//") ? `https:${raw}` : raw;
     if (!url.includes("photo.yupoo.com")) return;
+    // Generische Thumbnails (Cover) ueberspringen — keine eigenen Produkte
+    const lastSegment = url.split("/").pop()?.replace(/\.\w+$/, "").toLowerCase() || "";
+    if (["big", "small", "square", "medium", "thumb"].includes(lastSegment)) return;
     // ID = letzte zwei Pfadsegmente ohne Extension (z.B. "35227535_451e0536")
     const id = url
       .split("/")
