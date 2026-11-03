@@ -41,6 +41,9 @@ export async function PATCH(
     const updateValues: Record<string, any> = {};
 
     if (body.chosen_size !== undefined) updateValues.chosenSize = body.chosen_size;
+    if (body.price_cny !== undefined) {
+      updateValues.priceCny = body.price_cny === null ? null : Number(body.price_cny);
+    }
     if (body.quantity !== undefined) updateValues.quantity = Math.max(1, Number(body.quantity));
     if (body.user_notes !== undefined) updateValues.userNotes = String(body.user_notes).slice(0, 2000);
     if (body.is_shared !== undefined) updateValues.isShared = body.is_shared ? 1 : 0;

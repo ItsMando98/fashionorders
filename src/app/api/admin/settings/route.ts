@@ -1,9 +1,18 @@
 import { NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/server/auth";
 import { db, settings } from "@/lib/server/db";
-import { getFeeSettings } from "@/lib/server/pricing";
+import { getFeeSettings, getShopSettings } from "@/lib/server/pricing";
 
 export async function POST(request: Request) {
+  return handleSave(request);
+}
+
+// Die bestehende Admin-UI speichert per PATCH — beide Methoden erlauben.
+export async function PATCH(request: Request) {
+  return handleSave(request);
+}
+
+async function handleSave(request: Request) {
   const user = await getAuthUser(request);
   if (!user || user.role !== "admin") {
     return NextResponse.json({ detail: "Admin access required" }, { status: 403 });
@@ -38,10 +47,21 @@ export async function POST(request: Request) {
       const val = Math.max(0, parseFloat(body.default_haul_percent) || 0);
       await upsertSetting("default_haul_percent", String(val));
     }
+    if (body.shipping_eur !== undefined) {
+      const val = Math.max(0, parseFloat(body.shipping_eur) || 0);
+      await upsertSetting("shipping_eur", String(val));
+    }
+    // Crypto-Wallet-Adressen fuer den manuellen Checkout (BTC/ETH/USDT)
+    for (const key of ["crypto_btc_address", "crypto_eth_address", "crypto_usdt_address"] as const) {
+      if (body[key] !== undefined) {
+        await upsertSetting(key, String(body[key] || "").trim().slice(0, 200));
+      }
+    }
 
     return NextResponse.json({
       ok: true,
       settings: await getFeeSettings(),
+      shop_settings: await getShopSettings(),
     });
   } catch (err) {
     console.error("admin-settings", err);

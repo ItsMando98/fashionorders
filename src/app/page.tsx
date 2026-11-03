@@ -154,6 +154,12 @@ export default function DashboardPage() {
   const [inputDefaultItemPct, setInputDefaultItemPct] = useState("0");
   const [inputDefaultHaulPct, setInputDefaultHaulPct] = useState("0");
 
+  // Shop Settings (Crypto-Wallets + Versandkosten)
+  const [inputShippingEur, setInputShippingEur] = useState("0");
+  const [inputCryptoBtc, setInputCryptoBtc] = useState("");
+  const [inputCryptoEth, setInputCryptoEth] = useState("");
+  const [inputCryptoUsdt, setInputCryptoUsdt] = useState("");
+
   function notify(msg: string) {
     setToastMessage(msg);
     setTimeout(() => {
@@ -201,6 +207,22 @@ export default function DashboardPage() {
     localStorage.removeItem("fo_token");
     fetchWorkspace();
   }, [fetchWorkspace]);
+
+  // Shop-Settings (Crypto + Versand) laden, sobald ein Admin eingeloggt ist
+  useEffect(() => {
+    if (user?.role !== "admin") return;
+    fetch("/api/shop/settings", { credentials: "include" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!data?.shop_settings) return;
+        const s = data.shop_settings;
+        setInputShippingEur(String(s.shipping_eur ?? 0));
+        setInputCryptoBtc(s.crypto_btc_address || "");
+        setInputCryptoEth(s.crypto_eth_address || "");
+        setInputCryptoUsdt(s.crypto_usdt_address || "");
+      })
+      .catch(() => {});
+  }, [user?.role]);
 
   function handleAuthenticated(loggedUser: User) {
     setUser(loggedUser);
@@ -344,8 +366,10 @@ export default function DashboardPage() {
         const data = await res.json();
         setBulkUrlsText("");
         await fetchWorkspace();
-        setActiveNav(bulkStage === "cart" ? "my-cart" : "my-orders");
-        notify(`Scraped and imported ${data.added} items`);
+        notify(data.message || `Scraped and imported ${data.added ?? data.count ?? 0} items`);
+      } else {
+        const data = await res.json().catch(() => ({}));
+        notify(data.detail || "Bulk scrape failed");
       }
     } finally {
       setScrapingBulk(false);
@@ -382,7 +406,7 @@ export default function DashboardPage() {
 
   async function handleSubmitMyCart() {
     if (!user) return;
-    const res = await fetch("/api/orders/submit", {
+    const res = await fetch("/api/cart/submit", {
       method: "POST",
       credentials: "include",
     });
@@ -461,6 +485,28 @@ export default function DashboardPage() {
     if (res.ok) {
       await fetchWorkspace();
       notify("Saved global standard fee settings for all members");
+    }
+  }
+
+  async function handleSaveShopSettings(e: React.FormEvent) {
+    e.preventDefault();
+    if (!user) return;
+    const res = await fetch("/api/admin/settings", {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        shipping_eur: parseFloat(inputShippingEur) || 0,
+        crypto_btc_address: inputCryptoBtc.trim(),
+        crypto_eth_address: inputCryptoEth.trim(),
+        crypto_usdt_address: inputCryptoUsdt.trim(),
+      }),
+    });
+    if (res.ok) {
+      notify("Saved shop payment & shipping settings");
+    } else {
+      notify("Could not save shop settings");
     }
   }
 
@@ -2194,6 +2240,64 @@ export default function DashboardPage() {
                       <Download className="h-4 w-4" />
                       <span>Download Master FashionSupply.xlsx</span>
                     </Button>
+                  </CardContent>
+                </Card>
+
+                {/* Shop: Crypto-Wallets + Versandkosten */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-base">
+                      <DollarSign className="h-4 w-4 text-emerald-700" />
+                      <span>Shop Payments &amp; Shipping</span>
+                    </CardTitle>
+                    <CardDescription>
+                      Wallet addresses for the manual crypto checkout (shown to customers after ordering) and the flat shipping rate for shop orders.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <form onSubmit={handleSaveShopSettings} className="space-y-4">
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-medium text-zinc-700">BTC Address</label>
+                        <Input
+                          value={inputCryptoBtc}
+                          onChange={(e) => setInputCryptoBtc(e.target.value)}
+                          className="font-mono"
+                          placeholder="bc1…"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-medium text-zinc-700">ETH Address</label>
+                        <Input
+                          value={inputCryptoEth}
+                          onChange={(e) => setInputCryptoEth(e.target.value)}
+                          className="font-mono"
+                          placeholder="0x…"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-medium text-zinc-700">USDT Address (TRC20/ERC20)</label>
+                        <Input
+                          value={inputCryptoUsdt}
+                          onChange={(e) => setInputCryptoUsdt(e.target.value)}
+                          className="font-mono"
+                          placeholder="T… / 0x…"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-medium text-zinc-700">Flat Shipping per Order (€, 0 = free)</label>
+                        <Input
+                          type="number"
+                          step="0.5"
+                          min="0"
+                          value={inputShippingEur}
+                          onChange={(e) => setInputShippingEur(e.target.value)}
+                          className="font-mono"
+                        />
+                      </div>
+                      <Button type="submit" className="w-full">
+                        Save Shop Settings
+                      </Button>
+                    </form>
                   </CardContent>
                 </Card>
               </div>

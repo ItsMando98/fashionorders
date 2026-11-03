@@ -100,6 +100,97 @@ export async function ensureSchema(sql: Sql) {
       UNIQUE(owner_id, shared_with_user_id)
     );
 
+    CREATE TABLE IF NOT EXISTS products (
+      id SERIAL PRIMARY KEY,
+      title TEXT NOT NULL,
+      brand TEXT DEFAULT '—',
+      category TEXT DEFAULT 'Apparel / Item',
+      available_sizes TEXT DEFAULT '',
+      description TEXT DEFAULT '',
+      price_cny DOUBLE PRECISION,
+      image_url TEXT DEFAULT '',
+      local_image TEXT DEFAULT '',
+      source_platform TEXT DEFAULT 'Yupoo',
+      seller TEXT DEFAULT '',
+      source_url TEXT NOT NULL DEFAULT '',
+      weidian_url TEXT DEFAULT '',
+      active INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL DEFAULT (${NOW_UTC}),
+      updated_at TEXT NOT NULL DEFAULT (${NOW_UTC})
+    );
+
+    CREATE TABLE IF NOT EXISTS cart_items (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+      chosen_size TEXT DEFAULT '',
+      color_variant TEXT DEFAULT '',
+      quantity INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL DEFAULT (${NOW_UTC})
+    );
+
+    CREATE TABLE IF NOT EXISTS orders (
+      id SERIAL PRIMARY KEY,
+      order_number TEXT NOT NULL UNIQUE,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      status TEXT NOT NULL DEFAULT 'awaiting_payment',
+      ship_name TEXT DEFAULT '',
+      ship_street TEXT DEFAULT '',
+      ship_zip TEXT DEFAULT '',
+      ship_city TEXT DEFAULT '',
+      ship_country TEXT DEFAULT '',
+      subtotal_cny DOUBLE PRECISION NOT NULL DEFAULT 0,
+      subtotal_eur DOUBLE PRECISION NOT NULL DEFAULT 0,
+      item_fees_eur DOUBLE PRECISION NOT NULL DEFAULT 0,
+      haul_fee_percent DOUBLE PRECISION NOT NULL DEFAULT 0,
+      haul_fee_eur DOUBLE PRECISION NOT NULL DEFAULT 0,
+      shipping_eur DOUBLE PRECISION NOT NULL DEFAULT 0,
+      total_eur DOUBLE PRECISION NOT NULL DEFAULT 0,
+      crypto_currency TEXT DEFAULT '',
+      crypto_address TEXT DEFAULT '',
+      crypto_txid TEXT DEFAULT '',
+      admin_notes TEXT DEFAULT '',
+      tracking_number TEXT DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT (${NOW_UTC}),
+      updated_at TEXT NOT NULL DEFAULT (${NOW_UTC})
+    );
+
+    CREATE TABLE IF NOT EXISTS order_items (
+      id SERIAL PRIMARY KEY,
+      order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+      product_id INTEGER REFERENCES products(id) ON DELETE SET NULL,
+      title TEXT NOT NULL,
+      chosen_size TEXT DEFAULT '',
+      color_variant TEXT DEFAULT '',
+      quantity INTEGER NOT NULL DEFAULT 1,
+      price_cny DOUBLE PRECISION,
+      base_eur DOUBLE PRECISION,
+      fee_eur DOUBLE PRECISION NOT NULL DEFAULT 0,
+      line_total_eur DOUBLE PRECISION NOT NULL DEFAULT 0,
+      local_image TEXT DEFAULT '',
+      seller TEXT DEFAULT '',
+      source_url TEXT DEFAULT '',
+      weidian_url TEXT DEFAULT '',
+      fulfillment_status TEXT NOT NULL DEFAULT 'pending',
+      tracking_number TEXT DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT (${NOW_UTC})
+    );
+
+    CREATE TABLE IF NOT EXISTS scrape_sources (
+      id SERIAL PRIMARY KEY,
+      seller_url TEXT NOT NULL,
+      label TEXT DEFAULT '',
+      interval_hours INTEGER NOT NULL DEFAULT 24,
+      per_run_limit INTEGER NOT NULL DEFAULT 20,
+      active INTEGER NOT NULL DEFAULT 1,
+      last_run_at TEXT,
+      last_status TEXT NOT NULL DEFAULT '',
+      last_message TEXT NOT NULL DEFAULT '',
+      last_added INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (${NOW_UTC}),
+      updated_at TEXT NOT NULL DEFAULT (${NOW_UTC})
+    );
+
     CREATE TABLE IF NOT EXISTS gram_posts (
       id SERIAL PRIMARY KEY,
       user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -225,6 +316,24 @@ export async function ensureSchema(sql: Sql) {
 
   await sql.unsafe(
     "CREATE UNIQUE INDEX IF NOT EXISTS users_email_unique ON users(email) WHERE email IS NOT NULL"
+  );
+  // Dedupe: ein Produkt pro Quell-URL (leere URLs duerfen mehrfach vorkommen)
+  await sql.unsafe(
+    "CREATE UNIQUE INDEX IF NOT EXISTS products_source_url_unique ON products(source_url) WHERE source_url <> ''"
+  );
+  // Ein Warenkorb-Eintrag pro User + Produkt + Groesse
+  await sql.unsafe(
+    "CREATE UNIQUE INDEX IF NOT EXISTS cart_items_user_product_size_unique ON cart_items(user_id, product_id, chosen_size)"
+  );
+  await sql.unsafe(
+    "CREATE INDEX IF NOT EXISTS order_items_order_idx ON order_items(order_id)"
+  );
+  await sql.unsafe(
+    "CREATE INDEX IF NOT EXISTS orders_user_idx ON orders(user_id)"
+  );
+  // Jede Seller-URL darf nur einmal als Scrape-Quelle existieren
+  await sql.unsafe(
+    "CREATE UNIQUE INDEX IF NOT EXISTS scrape_sources_seller_url_unique ON scrape_sources(seller_url)"
   );
 
   // Handles fuer bestehende Nutzer vergeben

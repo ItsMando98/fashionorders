@@ -181,6 +181,54 @@ export function AppSidebar({
           </SidebarMenu>
         </SidebarGroup>
 
+        {/* 2b. Shop Section (neues Shop-System, eigene Routen) */}
+        <SidebarGroup>
+          <SidebarGroupLabel className="px-2 pb-1.5 text-[10px] font-mono font-bold tracking-wider text-zinc-500 uppercase">
+            SHOP
+          </SidebarGroupLabel>
+          <SidebarMenu className="gap-1">
+            {(
+              [
+                ["/shop", "Storefront"],
+                ["/cart", "Shopping Cart"],
+                ["/orders", "My Shop Orders"],
+              ] as const
+            ).map(([href, label]) => (
+              <SidebarMenuItem key={href}>
+                <a
+                  href={href}
+                  className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs font-medium text-zinc-300 transition-colors hover:bg-white/5 hover:text-white"
+                >
+                  <ShoppingCart className="h-4 w-4 shrink-0" />
+                  <span className="flex-1">{label}</span>
+                </a>
+              </SidebarMenuItem>
+            ))}
+            {isAdmin && (
+              <>
+                <SidebarMenuItem>
+                  <a
+                    href="/admin/products"
+                    className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs font-medium text-zinc-300 transition-colors hover:bg-white/5 hover:text-white"
+                  >
+                    <ClipboardList className="h-4 w-4 shrink-0" />
+                    <span className="flex-1">Product Catalog</span>
+                  </a>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <a
+                    href="/admin/orders"
+                    className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs font-medium text-zinc-300 transition-colors hover:bg-white/5 hover:text-white"
+                  >
+                    <PackageCheck className="h-4 w-4 shrink-0" />
+                    <span className="flex-1">Shop Orders (All)</span>
+                  </a>
+                </SidebarMenuItem>
+              </>
+            )}
+          </SidebarMenu>
+        </SidebarGroup>
+
         {/* 3. Mathis Admin Backend Section */}
         {isAdmin && (
           <SidebarGroup className="pt-2">

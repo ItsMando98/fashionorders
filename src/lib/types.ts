@@ -125,3 +125,148 @@ export interface WorkspaceResponse {
 export type Item = OrderItem;
 export type FeeSettings = WorkspaceResponse["settings"];
 
+// ---------------------------------------------------------------------------
+// Shop-System
+// ---------------------------------------------------------------------------
+
+// Kunden-Sicht auf ein Produkt: KEINE Seller-/Source-Felder.
+export interface PublicProduct {
+  id: number;
+  title: string;
+  brand: string;
+  category: string;
+  available_sizes: string;
+  description: string;
+  price_cny: number | null;
+  price_eur: number | null; // umgerechnet, inkl. Item-Fee (final_unit_eur)
+  image_url: string;
+  local_image: string;
+  source_platform: string;
+  active: number;
+  created_at: string;
+}
+
+// Admin-Sicht: zusaetzlich Seller + Quell-URLs.
+export interface AdminProduct extends PublicProduct {
+  seller: string;
+  source_url: string;
+  weidian_url: string;
+}
+
+export interface CartLine {
+  id: number; // cart_items.id
+  product_id: number;
+  title: string;
+  brand: string;
+  local_image: string;
+  chosen_size: string;
+  color_variant: string;
+  quantity: number;
+  price_cny: number | null;
+  base_price_eur: number | null;
+  item_fee_eur: number;
+  final_unit_eur: number;
+  line_total_cny: number | null;
+  line_total_eur: number;
+}
+
+export interface OrderTotals {
+  items_count: number;
+  subtotal_cny: number;
+  base_eur_sum: number;
+  item_fees_eur: number;
+  subtotal_eur: number;
+  haul_fee_percent: number;
+  haul_fee_eur: number;
+  shipping_eur: number;
+  total_eur: number;
+}
+
+export type ShopOrderStatus =
+  | "awaiting_payment"
+  | "paid"
+  | "ordering"
+  | "shipped"
+  | "delivered"
+  | "cancelled";
+
+// Kunden-Sicht auf eine Bestellposition: KEINE Seller-/Source-Felder.
+export interface ShopOrderItem {
+  id: number;
+  order_id: number;
+  product_id: number | null;
+  title: string;
+  chosen_size: string;
+  color_variant: string;
+  quantity: number;
+  price_cny: number | null;
+  base_eur: number | null;
+  fee_eur: number;
+  line_total_eur: number;
+  local_image: string;
+  fulfillment_status: string;
+  tracking_number: string;
+}
+
+export interface ShopOrder {
+  id: number;
+  order_number: string;
+  user_id: number;
+  status: ShopOrderStatus;
+  ship_name: string;
+  ship_street: string;
+  ship_zip: string;
+  ship_city: string;
+  ship_country: string;
+  subtotal_cny: number;
+  subtotal_eur: number;
+  item_fees_eur: number;
+  haul_fee_percent: number;
+  haul_fee_eur: number;
+  shipping_eur: number;
+  total_eur: number;
+  crypto_currency: string;
+  crypto_address: string;
+  crypto_txid: string;
+  tracking_number: string;
+  created_at: string;
+  updated_at: string;
+  items?: ShopOrderItem[];
+}
+
+// Admin-Sicht: Order + Kundendaten + Seller-Felder in den Positionen.
+export interface AdminShopOrderItem extends ShopOrderItem {
+  seller: string;
+  source_url: string;
+  weidian_url: string;
+}
+
+export interface AdminShopOrder extends ShopOrder {
+  user_name: string;
+  admin_notes: string;
+  items?: AdminShopOrderItem[];
+}
+
+export interface ShopSettings {
+  cny_to_eur: number;
+  shipping_eur: number;
+  crypto_btc_address: string;
+  crypto_eth_address: string;
+  crypto_usdt_address: string;
+}
+
+// Auto-Scraper: konfigurierte Seller-Quelle inkl. Status des letzten Laufs.
+export interface ScrapeSource {
+  id: number;
+  seller_url: string;
+  label: string;
+  interval_hours: number;
+  per_run_limit: number;
+  active: number;
+  last_run_at: string | null;
+  last_status: string; // "" | "running" | "ok" | "error"
+  last_message: string;
+  last_added: number;
+  created_at: string;
+}
+
