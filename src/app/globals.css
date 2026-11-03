@@ -1,0 +1,111 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 156 35% 12%;
+    --card: 0 0% 100%;
+    --card-foreground: 156 35% 12%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 156 35% 12%;
+
+    /* Forest Green foundation */
+    --primary: 158 50% 9%;
+    --primary-foreground: 150 30% 98%;
+
+    /* Specific Design Tokens matching design images */
+    --mandarine: 21 100% 50%; /* #FF5B00 vivid mandarine */
+    --mandarine-foreground: 0 0% 100%;
+
+    --forest: 158 50% 9%; /* #0D2218 solid deep forest */
+    --forest-foreground: 150 30% 98%;
+
+    --crest: 43 90% 61%; /* #F3C343 crest yellow */
+    --crest-foreground: 158 50% 9%;
+
+    --secondary: 150 25% 95%;
+    --secondary-foreground: 156 38% 15%;
+
+    --muted: 150 15% 95%;
+    --muted-foreground: 156 12% 44%;
+
+    --accent: 43 90% 61%;
+    --accent-foreground: 158 50% 9%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 21 100% 50%;
+    --radius: 0.75rem;
+
+    /* Deep Forest Green Sidebar matching Image 1 (#0D2218) */
+    --sidebar-background: 158 50% 9%;
+    --sidebar-foreground: 150 20% 88%;
+    --sidebar-primary: 43 90% 61%;
+    --sidebar-primary-foreground: 158 50% 9%;
+    --sidebar-accent: 156 40% 16%;
+    --sidebar-accent-foreground: 43 90% 61%;
+    --sidebar-border: 156 35% 13%;
+    --sidebar-ring: 21 100% 50%;
+  }
+
+  .dark {
+    --background: 158 50% 6%;
+    --foreground: 150 20% 95%;
+    --card: 158 45% 9%;
+    --card-foreground: 150 20% 95%;
+    --popover: 158 45% 9%;
+    --popover-foreground: 150 20% 95%;
+
+    --primary: 21 100% 50%;
+    --primary-foreground: 0 0% 100%;
+
+    --mandarine: 21 100% 50%;
+    --mandarine-foreground: 0 0% 100%;
+
+    --forest: 158 45% 14%;
+    --forest-foreground: 150 25% 96%;
+
+    --crest: 43 90% 61%;
+    --crest-foreground: 158 50% 9%;
+
+    --secondary: 156 30% 15%;
+    --secondary-foreground: 150 20% 90%;
+
+    --muted: 156 30% 14%;
+    --muted-foreground: 150 15% 60%;
+
+    --accent: 43 90% 61%;
+    --accent-foreground: 158 50% 9%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 156 30% 18%;
+    --input: 156 30% 18%;
+    --ring: 21 100% 50%;
+
+    --sidebar-background: 158 50% 7%;
+    --sidebar-foreground: 150 20% 90%;
+    --sidebar-primary: 43 90% 61%;
+    --sidebar-primary-foreground: 158 50% 9%;
+    --sidebar-accent: 156 38% 13%;
+    --sidebar-accent-foreground: 43 90% 61%;
+    --sidebar-border: 156 35% 12%;
+    --sidebar-ring: 21 100% 50%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
