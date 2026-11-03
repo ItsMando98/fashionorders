@@ -75,8 +75,8 @@
 /* The order screens still use zinc utilities. Inside .fs-night those
    utilities follow the same night tokens, so the workspace matches the hero. */
 .fs-night {
-  /* Transparent, damit der WebGL-Shader-Hintergrund durchscheint. */
-  background-color: transparent;
+  /* Kein eigener Hintergrund: der WebGL-Shader scheint durch, das
+     Inset-Panel bekommt seine Tönung direkt in page.tsx. */
   color: #f4f4f5;
 }
 .fs-night .bg-white {
@@ -124,4 +124,71 @@
 }
 .fs-night .to-white {
   --tw-gradient-to: #12141c var(--tw-gradient-to-position);
+}
+
+/* ------------------------------------------------------------------
+   Shell-Reveal-Animationen (Shopify-Polaris-Stil): kurzes, weiches
+   Einblenden beim ersten Aufbau der App Shell. Laueft nur einmal pro
+   Mount, respektiert prefers-reduced-motion.
+   ------------------------------------------------------------------ */
+@keyframes fs-reveal-left {
+  from { opacity: 0; transform: translateX(-18px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+@keyframes fs-reveal-up {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes fs-reveal-down {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.shell-reveal-sidebar { animation: fs-reveal-left 0.55s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.shell-reveal-header { animation: fs-reveal-down 0.45s cubic-bezier(0.22, 1, 0.36, 1) 0.08s both; }
+.shell-reveal-content { animation: fs-reveal-up 0.6s cubic-bezier(0.22, 1, 0.36, 1) 0.16s both; }
+
+/* Stagger: Sidebar-Gruppen blenden nacheinander ein. */
+.shell-reveal-item { animation: fs-reveal-left 0.45s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.shell-reveal-item:nth-child(1) { animation-delay: 0.05s; }
+.shell-reveal-item:nth-child(2) { animation-delay: 0.12s; }
+.shell-reveal-item:nth-child(3) { animation-delay: 0.19s; }
+.shell-reveal-item:nth-child(4) { animation-delay: 0.26s; }
+.shell-reveal-item:nth-child(5) { animation-delay: 0.33s; }
+
+@media (prefers-reduced-motion: reduce) {
+  .shell-reveal-sidebar,
+  .shell-reveal-header,
+  .shell-reveal-content,
+  .shell-reveal-item {
+    animation: none !important;
+  }
+}
+
+/* ------------------------------------------------------------------
+   Kollabierte Sidebar (dashboard-1 Icon-Rail): nur Icons zeigen,
+   Texte/Labels/Badges ausblenden, Buttons zentrieren.
+   ------------------------------------------------------------------ */
+[data-state="collapsed"] [data-sidebar-group-label] {
+  display: none;
+}
+[data-state="collapsed"] aside button {
+  justify-content: center;
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
+}
+[data-state="collapsed"] aside button span {
+  display: none;
+}
+[data-state="collapsed"] aside .fs-side-text {
+  display: none;
+}
+[data-state="collapsed"] aside .fs-side-header {
+  justify-content: center;
+  padding-left: 0;
+  padding-right: 0;
+}
+[data-state="collapsed"] aside .fs-side-usercard {
+  flex-direction: column;
+  gap: 0.5rem;
 }

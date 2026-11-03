@@ -655,13 +655,14 @@ export default function DashboardPage() {
         onLogout={handleLogout}
       />
 
-      <SidebarInset className="fs-night bg-transparent">
+      <SidebarInset className="fs-night bg-[#07080c]/60 backdrop-blur-md">
         {/* Top Header */}
         <header className={activeNav === "gram"
-          ? "sticky top-0 z-20 flex h-12 shrink-0 items-center border-b border-white/10 bg-[#07080c]/80 backdrop-blur px-3"
-          : "sticky top-0 z-20 flex h-14 shrink-0 items-center justify-between border-b border-zinc-200/80 bg-white px-6"}>
+          ? "shell-reveal-header sticky top-0 z-20 flex h-12 shrink-0 items-center rounded-t-xl border-b border-white/10 bg-[#07080c]/80 backdrop-blur px-3"
+          : "shell-reveal-header sticky top-0 z-20 flex h-14 shrink-0 items-center justify-between rounded-t-xl border-b border-zinc-200/80 bg-[#0b0c12]/70 backdrop-blur-md px-6"}>
           <div className="flex items-center gap-3">
             <SidebarTrigger className={activeNav === "gram" ? "text-white" : "text-zinc-700 hover:text-zinc-950"} />
+            <Separator orientation="vertical" className={activeNav === "gram" ? "h-4 bg-white/15" : "h-4"} />
             {activeNav !== "gram" && (
             <div className="flex items-center gap-1.5 text-xs">
               <span className="font-normal text-zinc-500">
@@ -718,7 +719,7 @@ export default function DashboardPage() {
         </header>
 
         {/* Main Content */}
-        <div className={activeNav === "gram" ? "flex-1 w-full" : "flex-1 space-y-6 p-6 max-w-7xl w-full mx-auto"}>
+        <div className={activeNav === "gram" ? "shell-reveal-content flex-1 w-full" : "shell-reveal-content flex-1 space-y-6 p-6 max-w-7xl w-full mx-auto"}>
           {activeNav === "gram" && <FashionGramStudio />}
           {/* ================================================================
               1. LINK SCRAPER & EUR CALCULATOR

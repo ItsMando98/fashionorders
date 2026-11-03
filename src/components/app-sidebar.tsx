@@ -68,12 +68,12 @@ export function AppSidebar({
   return (
     <Sidebar className="border-r border-white/10 bg-[#07080c] text-zinc-300">
       {/* 1. Header with Logo & Workspace Title matching Image 1 */}
-      <SidebarHeader className="border-b border-white/10 px-4 py-4">
-        <div className="flex items-center gap-3">
+      <SidebarHeader className="shell-reveal-item border-b border-white/10 px-4 py-4">
+        <div className="fs-side-header flex items-center gap-3">
           <span className="inline-flex h-9 w-9 shrink-0 overflow-hidden rounded-md bg-black">
             <img src="/brand/mark.png" alt="" className="h-full w-full scale-150 object-cover" />
           </span>
-          <div className="flex flex-col">
+          <div className="fs-side-text flex flex-col">
             <span className="font-display text-lg font-bold italic leading-none tracking-wide text-white">
               FASHION SUPPLY
             </span>
@@ -86,7 +86,7 @@ export function AppSidebar({
 
       <SidebarContent className="px-3 py-4 space-y-4">
         {/* 2. My Personal Haul Section */}
-        <SidebarGroup>
+        <SidebarGroup className="shell-reveal-item">
           <SidebarGroupLabel className="px-2 pb-1.5 text-[10px] font-mono font-bold tracking-wider text-zinc-500 uppercase">
             MY PERSONAL HAUL
           </SidebarGroupLabel>
@@ -182,7 +182,7 @@ export function AppSidebar({
         </SidebarGroup>
 
         {/* 2b. Shop Section (neues Shop-System, eigene Routen) */}
-        <SidebarGroup>
+        <SidebarGroup className="shell-reveal-item">
           <SidebarGroupLabel className="px-2 pb-1.5 text-[10px] font-mono font-bold tracking-wider text-zinc-500 uppercase">
             SHOP
           </SidebarGroupLabel>
@@ -231,7 +231,7 @@ export function AppSidebar({
 
         {/* 3. Mathis Admin Backend Section */}
         {isAdmin && (
-          <SidebarGroup className="pt-2">
+          <SidebarGroup className="shell-reveal-item pt-2">
             <SidebarGroupLabel className="px-2 pb-1.5 text-[10px] font-mono font-bold tracking-wider text-zinc-500 uppercase flex items-center gap-1.5">
               <Shield className="h-3 w-3 text-zinc-500" />
               <span>ADMIN BACKEND</span>
@@ -293,7 +293,7 @@ export function AppSidebar({
       </SidebarContent>
 
       {/* 4. Footer with Share Button & User Profile Container matching Image 1 */}
-      <SidebarFooter className="border-t border-white/10 p-3 space-y-2.5">
+      <SidebarFooter className="shell-reveal-item border-t border-white/10 p-3 space-y-2.5">
         <button
           type="button"
           onClick={onOpenShareModal}
@@ -303,12 +303,12 @@ export function AppSidebar({
           <span>Share My Order with Users</span>
         </button>
 
-        <div className="flex items-center justify-between rounded-md border border-white/10 bg-black p-2.5">
+        <div className="fs-side-usercard flex items-center justify-between rounded-md border border-white/10 bg-black p-2.5">
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[#FF4D00]/50 bg-[#FF4D00]/15 font-mono text-xs font-bold text-white">
               {user.avatar_initials}
             </div>
-            <div className="min-w-0">
+            <div className="fs-side-text min-w-0">
               <div className="truncate text-xs font-bold text-white">{user.name}</div>
               <div className="truncate text-[10px] font-medium text-zinc-500">
                 {isAdmin ? "Admin Console" : "Member Account"}

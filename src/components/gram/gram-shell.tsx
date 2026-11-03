@@ -79,7 +79,7 @@ export function GramShell() {
   ];
 
   return (
-    <div className="flex h-[calc(100vh-3rem)] w-full text-foreground">
+    <div className="flex h-[calc(100vh-4rem-2px)] w-full text-foreground">
       {/* Desktop sidebar */}
       <aside className="hidden w-[220px] shrink-0 flex-col border-r border-border md:flex">
         <button

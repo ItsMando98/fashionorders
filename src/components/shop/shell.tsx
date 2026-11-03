@@ -74,7 +74,7 @@ export function ShopShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen text-foreground">
-      <header className="sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur">
+      <header className="shell-reveal-header sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur">
         <div className="max-w-6xl mx-auto px-4 h-14 flex items-center gap-2">
           <Link href="/shop" className="flex items-center gap-2 mr-4">
             <Store className="h-5 w-5 text-primary" />
@@ -98,7 +98,7 @@ export function ShopShell({ children }: { children: React.ReactNode }) {
           </button>
         </div>
       </header>
-      <main className="max-w-6xl mx-auto px-4 py-6">{children}</main>
+      <main className="shell-reveal-content max-w-6xl mx-auto px-4 py-6">{children}</main>
     </div>
   );
 }

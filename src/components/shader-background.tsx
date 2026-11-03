@@ -338,14 +338,15 @@ export function ShaderBackground() {
     gl.enableVertexAttribArray(positionLoc);
     gl.vertexAttribPointer(positionLoc, 2, gl.FLOAT, false, 0, 0);
 
-    // Recipe colours (low -> high): #101010, #F5F5F5, #B0B0B0, #3A3A3A.
+    // Recipe colours (low -> high), dunkel getuned: mehr Schwarz, weniger Weiss.
+    // #101010, #8C8C8C, #4D4D4D, #212121 (hellste Blobs jetzt Mittelgrau).
     // Slots 4-7 are unused (u_scene.w = 4) but the array must be fully set.
     const colorsLoc = gl.getUniformLocation(program, "u_colors[0]");
     gl.uniform3fv(colorsLoc, new Float32Array([
       0.063, 0.063, 0.063,
-      0.961, 0.961, 0.961,
-      0.69, 0.69, 0.69,
-      0.227, 0.227, 0.227,
+      0.549, 0.549, 0.549,
+      0.302, 0.302, 0.302,
+      0.129, 0.129, 0.129,
       0.063, 0.063, 0.063,
       0.063, 0.063, 0.063,
       0.063, 0.063, 0.063,
@@ -362,7 +363,7 @@ export function ShaderBackground() {
 
     // Static recipe values, packed as described in the shader header.
     gl.uniform4f(shapeLoc, 1.16, 0.34, 0.5, 0.0); // scale, intensity, paramA, warp
-    gl.uniform4f(surfaceLoc, 2.4, 1.16, 0.0, 1.0); // detail, contrast, brightness, saturation
+    gl.uniform4f(surfaceLoc, 2.4, 1.16, -0.06, 1.0); // detail, contrast, brightness (leicht abgedunkelt), saturation
     gl.uniform4f(finishLoc, 0.0, 0.0, 0.0, 0.09); // hue, vignette, blur, grain
     gl.uniform4f(transformLoc, 1453.0, 0.0, 0.0, 0.0); // seed, rotation, drift, OKLab toggle
     gl.uniform4f(spaceLoc, 0.0, 0.0, 0.0, 0.0); // offset.xy, pointer.xy (cursor off)
