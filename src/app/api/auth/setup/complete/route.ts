@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { and, desc, eq, sql } from "drizzle-orm";
-import { deleteUserSessions, getAuthUser, createSession } from "@/lib/server/auth";
+import { deleteUserSessions, getPendingSetupUser, createSession } from "@/lib/server/auth";
 import { db, loginCodes, users } from "@/lib/server/db";
 import { normalizeEmail } from "@/lib/server/email";
 import { errorResponse, PublicError, tooManyAttempts } from "@/lib/server/http";
@@ -19,7 +19,7 @@ const PURPOSE = "setup";
 // Step 2 of the forced first-login setup: verify the email code and set a
 // new personal password. On success the must_setup flag is cleared.
 export async function POST(request: Request) {
-  const user = await getAuthUser(request);
+  const user = await getPendingSetupUser(request);
   if (!user) {
     return NextResponse.json({ detail: "Not authenticated" }, { status: 401 });
   }

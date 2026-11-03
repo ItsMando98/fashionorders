@@ -7,7 +7,7 @@ import { readCookie, SESSION_COOKIE, sessionExpiresAt } from "./session-cookie";
 
 const LOGIN_ERROR = "Incorrect username or password.";
 
-export async function createSession(userId: number): Promise<string> {
+export async function createSession(userId: number, setupOnly = false): Promise<string> {
   await ensureDb();
   const token = crypto.randomBytes(32).toString("hex");
   const now = new Date().toISOString();
@@ -16,6 +16,7 @@ export async function createSession(userId: number): Promise<string> {
     token,
     userId,
     expiresAt: sessionExpiresAt(),
+    setupOnly: setupOnly ? 1 : 0,
   });
   return token;
 }
@@ -49,6 +50,7 @@ export async function getUserFromToken(token: string | null): Promise<User | nul
         custom_haul_percent: users.customHaulPercent,
         disabled: users.disabled,
         expires_at: sessions.expiresAt,
+        setup_only: sessions.setupOnly,
       })
       .from(sessions)
       .innerJoin(users, eq(sessions.userId, users.id))
@@ -60,6 +62,9 @@ export async function getUserFromToken(token: string | null): Promise<User | nul
     await deleteSession(cleanToken);
     return null;
   }
+  // Setup-only sessions never authenticate the app. They exist so the
+  // forced first-login wizard can verify email + set a password, nothing else.
+  if (res.setup_only === 1) return null;
 
   return {
     id: res.id,
@@ -75,6 +80,53 @@ export async function getUserFromToken(token: string | null): Promise<User | nul
 
 export function getAuthUser(request: Request): Promise<User | null> {
   return getUserFromToken(readCookie(request, SESSION_COOKIE));
+}
+
+// Authenticates ONLY the forced first-login wizard: requires a valid
+// setup-only session for an account that still has must_setup = 1.
+// Returns null in every other case (normal sessions included).
+export async function getPendingSetupUser(request: Request): Promise<{
+  id: number;
+  name: string;
+  role: "admin" | "friend";
+  avatar_initials: string;
+} | null> {
+  const token = readCookie(request, SESSION_COOKIE);
+  if (!token) return null;
+  const cleanToken = token.startsWith("Bearer ") ? token.slice(7).trim() : token.trim();
+  if (!cleanToken) return null;
+  await ensureDb();
+
+  const res = (
+    await db
+      .select({
+        id: users.id,
+        name: users.name,
+        role: users.role,
+        avatar_initials: users.avatarInitials,
+        disabled: users.disabled,
+        must_setup: users.mustSetup,
+        expires_at: sessions.expiresAt,
+        setup_only: sessions.setupOnly,
+      })
+      .from(sessions)
+      .innerJoin(users, eq(sessions.userId, users.id))
+      .where(eq(sessions.token, cleanToken))
+  )[0];
+
+  if (!res) return null;
+  if (!res.expires_at || Date.parse(res.expires_at) <= Date.now() || res.disabled === 1) {
+    await deleteSession(cleanToken);
+    return null;
+  }
+  if (res.setup_only !== 1 || res.must_setup !== 1) return null;
+
+  return {
+    id: res.id,
+    name: res.name,
+    role: res.role as "admin" | "friend",
+    avatar_initials: res.avatar_initials,
+  };
 }
 
 export async function authenticateUser(

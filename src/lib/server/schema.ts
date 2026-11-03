@@ -29,6 +29,7 @@ export const sessions = pgTable("sessions", {
     .references(() => users.id, { onDelete: "cascade" }),
   createdAt: text("created_at").notNull().default(nowUtc),
   expiresAt: text("expires_at"),
+  setupOnly: integer("setup_only").notNull().default(0),
 });
 
 export const settings = pgTable("settings", {

@@ -25,7 +25,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ detail: result.detail }, { status: result.status });
     }
 
-    const token = await createSession(result.userId);
+    // Accounts with a temporary password get a setup-only session: it can
+    // verify email + set a password, but never unlocks the app itself.
+    const token = await createSession(result.userId, result.must_setup === 1);
     const response = NextResponse.json({
       user: {
         id: result.userId,

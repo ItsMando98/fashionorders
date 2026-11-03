@@ -41,7 +41,8 @@ export async function ensureSchema(sql: Sql) {
       token TEXT PRIMARY KEY,
       user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       created_at TEXT NOT NULL DEFAULT (${NOW_UTC}),
-      expires_at TEXT
+      expires_at TEXT,
+      setup_only INTEGER NOT NULL DEFAULT 0
     );
 
     CREATE TABLE IF NOT EXISTS settings (
@@ -217,6 +218,7 @@ export async function ensureSchema(sql: Sql) {
   await ensureColumn(sql, "users", "bio", "TEXT NOT NULL DEFAULT ''");
   await ensureColumn(sql, "users", "handle", "TEXT");
   await ensureColumn(sql, "sessions", "expires_at", "TEXT");
+  await ensureColumn(sql, "sessions", "setup_only", "INTEGER NOT NULL DEFAULT 0");
   await ensureColumn(sql, "items", "is_shared", "INTEGER NOT NULL DEFAULT 0");
   await ensureColumn(sql, "items", "custom_fee_fixed_eur", "DOUBLE PRECISION");
   await ensureColumn(sql, "items", "custom_fee_percent", "DOUBLE PRECISION");

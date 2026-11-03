@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { and, eq, sql } from "drizzle-orm";
-import { getAuthUser } from "@/lib/server/auth";
+import { getPendingSetupUser } from "@/lib/server/auth";
 import { db, loginCodes, users } from "@/lib/server/db";
 import { codeExpiresAt, createLoginCode, normalizeEmail, sendLoginCodeEmail } from "@/lib/server/email";
 import { errorResponse, PublicError, tooManyAttempts } from "@/lib/server/http";
@@ -12,7 +12,7 @@ const PURPOSE = "setup";
 // Step 1 of the forced first-login setup: the user enters their email,
 // we send a 6-digit verification code to it.
 export async function POST(request: Request) {
-  const user = await getAuthUser(request);
+  const user = await getPendingSetupUser(request);
   if (!user) {
     return NextResponse.json({ detail: "Not authenticated" }, { status: 401 });
   }
