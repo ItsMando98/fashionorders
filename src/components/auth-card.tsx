@@ -199,8 +199,8 @@ export function AuthCard({ onAuthenticated }: AuthCardProps) {
             <img
               src={item.src}
               alt=""
-              className={`absolute inset-0 h-full w-full object-contain transition-[opacity,transform] duration-[4000ms] ease-[cubic-bezier(0.4,0,0.2,1)] will-change-[opacity,transform] ${
-                index === slide ? "opacity-100 scale-100" : "opacity-0 scale-[1.06]"
+              className={`absolute inset-0 h-full w-full object-contain transition-opacity duration-1000 ease-in-out will-change-opacity ${
+                index === slide ? "opacity-100" : "opacity-0"
               }`}
             />
           </picture>
