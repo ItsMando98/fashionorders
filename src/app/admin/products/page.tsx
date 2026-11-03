@@ -293,6 +293,7 @@ export default function AdminProductsPage() {
             </h2>
             <p className="text-xs text-muted-foreground mt-1">
               The scheduler runs on the server and scrapes every active source automatically at its interval.
+              Paste any seller URL (e.g. …/categories) — all categories are walked album by album.
               Products are deduplicated by source URL.
             </p>
           </div>
@@ -302,7 +303,7 @@ export default function AdminProductsPage() {
             <input
               value={sourceForm.seller_url}
               onChange={(e) => setSourceForm((f) => ({ ...f, seller_url: e.target.value }))}
-              placeholder="https://seller.x.yupoo.com"
+              placeholder="https://seller.x.yupoo.com/categories"
               className="px-3 py-2 rounded-md bg-background border border-border text-sm outline-none focus:border-primary font-mono"
             />
             <input
@@ -324,7 +325,7 @@ export default function AdminProductsPage() {
             <input
               type="number"
               min={1}
-              max={200}
+              max={1000}
               value={sourceForm.per_run_limit}
               onChange={(e) => setSourceForm((f) => ({ ...f, per_run_limit: e.target.value }))}
               title="Max albums per run"

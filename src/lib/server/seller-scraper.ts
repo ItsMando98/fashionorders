@@ -16,26 +16,72 @@ const USER_AGENT =
 // Zeitstempel im App-Format (TEXT, UTC): "YYYY-MM-DD HH:MM:SS"
 const nowUtc = () => new Date().toISOString().slice(0, 19).replace("T", " ");
 
-// Liest die Album-Liste eines Sellers (paginiert) und sammelt Album-URLs.
-export async function collectAlbumUrls(sellerBase: string, maxPages = 3): Promise<string[]> {
+// Normalisiert beliebige Seller-URLs (…/categories, …/albums, mit/ohne Slash)
+// auf die Basis-URL, z.B. "https://happywhale.x.yupoo.com".
+export function sellerBaseUrl(url: string): string {
+  const m = url.trim().match(/^(https?:\/\/[^/]+)/i);
+  return m ? m[1] : url.trim().replace(/\/$/, "");
+}
+
+// Sammelt Album-IDs aus einer bereits geladenen Seite.
+function extractAlbumIds($: cheerio.CheerioAPI): string[] {
+  const ids: string[] = [];
+  $("a[href*='/albums/']").each((_, a) => {
+    const m = ($(a).attr("href") || "").match(/\/albums\/(\d+)/);
+    if (m) ids.push(m[1]);
+  });
+  return ids;
+}
+
+// Liest die Album-Listen eines Sellers und sammelt Album-URLs (1 Album = 1 Produkt).
+// Funktioniert mit jeder Seller-URL (Basis, /categories oder /albums):
+//   1. /categories laden -> alle Kategorie-IDs sammeln
+//   2. /albums + jede Kategorie-Seite paginiert durchgehen
+// Stoppt fruehzeitig, sobald `limit` Alben gefunden sind (neueste zuerst).
+export async function collectAlbumUrls(sellerUrl: string, limit = 100, maxPagesPerList = 10): Promise<string[]> {
+  const base = sellerBaseUrl(sellerUrl);
+  const headers = { "User-Agent": USER_AGENT, Referer: base };
   const found = new Set<string>();
-  const base = sellerBase.replace(/\/$/, "");
-  for (let page = 1; page <= maxPages; page++) {
-    const res = await fetch(`${base}/albums?page=${page}`, {
-      headers: { "User-Agent": USER_AGENT, Referer: base },
-    });
-    if (!res.ok) break; // Seite nicht erreichbar -> abbrechen
-    const html = await res.text();
-    const $ = cheerio.load(html);
-    const before = found.size;
-    $("a[href*='/albums/']").each((_, a) => {
-      const href = $(a).attr("href") || "";
-      const m = href.match(/\/albums\/(\d+)/);
-      if (m) found.add(`${base}/albums/${m[1]}`);
-    });
-    if (found.size === before) break; // keine neuen Alben -> letzte Seite erreicht
+
+  // 1) Kategorien des Sellers sammeln (/categories-Seite)
+  const categoryIds = new Set<string>();
+  try {
+    const res = await fetch(`${base}/categories`, { headers });
+    if (res.ok) {
+      const $ = cheerio.load(await res.text());
+      $("a[href*='/categories/']").each((_, a) => {
+        const m = ($(a).attr("href") || "").match(/\/categories\/(\d+)/);
+        if (m) categoryIds.add(m[1]);
+      });
+    }
+  } catch {
+    // keine Kategorien erreichbar -> nur /albums verwenden
   }
-  return [...found];
+
+  // 2) Albumlisten durchgehen: erst /albums (Gesamtuebersicht), dann jede Kategorie
+  const listUrls = [
+    `${base}/albums`,
+    ...[...categoryIds].slice(0, 50).map((id) => `${base}/categories/${id}`),
+  ];
+  for (const listUrl of listUrls) {
+    if (found.size >= limit) break;
+    for (let page = 1; page <= maxPagesPerList; page++) {
+      let res: Response;
+      try {
+        res = await fetch(`${listUrl}?page=${page}`, { headers });
+      } catch {
+        break; // Netzwerkfehler -> naechste Liste
+      }
+      if (!res.ok) break; // Seite nicht erreichbar -> letzte Seite der Liste
+      const $ = cheerio.load(await res.text());
+      const before = found.size;
+      for (const id of extractAlbumIds($)) found.add(`${base}/albums/${id}`);
+      if (found.size === before) break; // keine neuen Alben -> letzte Seite erreicht
+      if (found.size >= limit) break;
+    }
+  }
+  // Neueste Alben zuerst (Yupoo listet absteigend), auf limit kuerzen
+  return [...found].slice(0, limit);
 }
 
 export interface ScrapeRunResult {
@@ -48,7 +94,7 @@ export interface ScrapeRunResult {
 // Dedupe laeuft in scrapeToProduct ueber die unique source_url.
 export async function scrapeSellerAlbums(sellerUrl: string, limit: number): Promise<ScrapeRunResult> {
   await ensureDb();
-  const albumUrls = (await collectAlbumUrls(sellerUrl)).slice(0, limit);
+  const albumUrls = await collectAlbumUrls(sellerUrl, limit);
   let added = 0;
   let failed = 0;
   for (const url of albumUrls) {

@@ -37,7 +37,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       patch.intervalHours = Math.min(720, Math.max(1, Number(body.interval_hours) || 24));
     }
     if (body.per_run_limit !== undefined) {
-      patch.perRunLimit = Math.min(200, Math.max(1, Number(body.per_run_limit) || 20));
+      patch.perRunLimit = Math.min(1000, Math.max(1, Number(body.per_run_limit) || 20));
     }
     if (body.active !== undefined) patch.active = body.active ? 1 : 0;
 

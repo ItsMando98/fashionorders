@@ -32,7 +32,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ detail: "seller_url must be a valid URL" }, { status: 400 });
     }
     const intervalHours = Math.min(720, Math.max(1, Number(body.interval_hours) || 24));
-    const perRunLimit = Math.min(200, Math.max(1, Number(body.per_run_limit) || 20));
+    const perRunLimit = Math.min(1000, Math.max(1, Number(body.per_run_limit) || 20));
     const label = String(body.label || "").trim().slice(0, 120);
 
     await ensureDb();
