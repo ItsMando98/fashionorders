@@ -2,102 +2,64 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Night cinema tokens, matched to the Fashion Supply hero:
+   near-black ground, orange call-to-action, cyan neon rim. */
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 156 35% 12%;
-    --card: 0 0% 100%;
-    --card-foreground: 156 35% 12%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 156 35% 12%;
+    --background: 240 14% 4%;
+    --foreground: 0 0% 96%;
+    --card: 232 18% 9%;
+    --card-foreground: 0 0% 96%;
+    --popover: 232 18% 9%;
+    --popover-foreground: 0 0% 96%;
 
-    /* Forest Green foundation */
-    --primary: 158 50% 9%;
-    --primary-foreground: 150 30% 98%;
-
-    /* Specific Design Tokens matching design images */
-    --mandarine: 21 100% 50%; /* #FF5B00 vivid mandarine */
-    --mandarine-foreground: 0 0% 100%;
-
-    --forest: 158 50% 9%; /* #0D2218 solid deep forest */
-    --forest-foreground: 150 30% 98%;
-
-    --crest: 43 90% 61%; /* #F3C343 crest yellow */
-    --crest-foreground: 158 50% 9%;
-
-    --secondary: 150 25% 95%;
-    --secondary-foreground: 156 38% 15%;
-
-    --muted: 150 15% 95%;
-    --muted-foreground: 156 12% 44%;
-
-    --accent: 43 90% 61%;
-    --accent-foreground: 158 50% 9%;
-
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
-
-    --border: 220 13% 91%;
-    --input: 220 13% 91%;
-    --ring: 21 100% 50%;
-    --radius: 0.75rem;
-
-    /* Deep Forest Green Sidebar matching Image 1 (#0D2218) */
-    --sidebar-background: 158 50% 9%;
-    --sidebar-foreground: 150 20% 88%;
-    --sidebar-primary: 43 90% 61%;
-    --sidebar-primary-foreground: 158 50% 9%;
-    --sidebar-accent: 156 40% 16%;
-    --sidebar-accent-foreground: 43 90% 61%;
-    --sidebar-border: 156 35% 13%;
-    --sidebar-ring: 21 100% 50%;
-  }
-
-  .dark {
-    --background: 158 50% 6%;
-    --foreground: 150 20% 95%;
-    --card: 158 45% 9%;
-    --card-foreground: 150 20% 95%;
-    --popover: 158 45% 9%;
-    --popover-foreground: 150 20% 95%;
-
-    --primary: 21 100% 50%;
+    --primary: 18 100% 50%;
     --primary-foreground: 0 0% 100%;
 
-    --mandarine: 21 100% 50%;
+    --mandarine: 18 100% 50%;
     --mandarine-foreground: 0 0% 100%;
 
-    --forest: 158 45% 14%;
-    --forest-foreground: 150 25% 96%;
+    --forest: 240 14% 7%;
+    --forest-foreground: 0 0% 96%;
 
-    --crest: 43 90% 61%;
-    --crest-foreground: 158 50% 9%;
+    --crest: 193 100% 62%;
+    --crest-foreground: 200 40% 6%;
 
-    --secondary: 156 30% 15%;
-    --secondary-foreground: 150 20% 90%;
+    --secondary: 230 14% 14%;
+    --secondary-foreground: 0 0% 92%;
 
-    --muted: 156 30% 14%;
-    --muted-foreground: 150 15% 60%;
+    --muted: 230 12% 14%;
+    --muted-foreground: 230 8% 68%;
 
-    --accent: 43 90% 61%;
-    --accent-foreground: 158 50% 9%;
+    --accent: 193 100% 62%;
+    --accent-foreground: 200 40% 6%;
 
-    --destructive: 0 62.8% 30.6%;
+    --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 98%;
 
-    --border: 156 30% 18%;
-    --input: 156 30% 18%;
-    --ring: 21 100% 50%;
+    --border: 230 12% 20%;
+    --input: 230 12% 22%;
+    --ring: 18 100% 50%;
+    --radius: 0.45rem;
 
-    --sidebar-background: 158 50% 7%;
-    --sidebar-foreground: 150 20% 90%;
-    --sidebar-primary: 43 90% 61%;
-    --sidebar-primary-foreground: 158 50% 9%;
-    --sidebar-accent: 156 38% 13%;
-    --sidebar-accent-foreground: 43 90% 61%;
-    --sidebar-border: 156 35% 12%;
-    --sidebar-ring: 21 100% 50%;
+    --sidebar-background: 240 16% 3%;
+    --sidebar-foreground: 220 10% 86%;
+    --sidebar-primary: 18 100% 50%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 230 14% 12%;
+    --sidebar-accent-foreground: 18 100% 60%;
+    --sidebar-border: 230 12% 16%;
+    --sidebar-ring: 193 100% 62%;
   }
+}
+
+/* FashionGram story ring: mandarine -> crest gradient, matches the
+   luxury tokens in tailwind.config.ts. */
+.gram-story-ring {
+  background: conic-gradient(from 210deg, #ff4d00, #fad53d, #f98858, #ff4d00);
+}
+.gram-story-ring-seen {
+  background: #2a2d38;
 }
 
 @layer base {
@@ -108,4 +70,57 @@
     @apply bg-background text-foreground antialiased;
     font-feature-settings: "rlig" 1, "calt" 1;
   }
+}
+
+/* The order screens still use zinc utilities. Inside .fs-night those
+   utilities follow the same night tokens, so the workspace matches the hero. */
+.fs-night {
+  background-color: #07080c;
+  color: #f4f4f5;
+}
+.fs-night .bg-white {
+  background-color: #12141c;
+}
+.fs-night .bg-zinc-50,
+.fs-night .bg-zinc-50\/50,
+.fs-night .bg-zinc-50\/70 {
+  background-color: #0e1016;
+}
+.fs-night .bg-zinc-100,
+.fs-night .bg-zinc-100\/80 {
+  background-color: #1c1e28;
+}
+.fs-night .border-zinc-200,
+.fs-night .border-zinc-200\/80,
+.fs-night .border-zinc-200\/90,
+.fs-night .border-zinc-300 {
+  border-color: rgba(255, 255, 255, 0.12);
+}
+.fs-night .text-zinc-950,
+.fs-night .text-zinc-900,
+.fs-night .text-zinc-800 {
+  color: #f5f5f7;
+}
+.fs-night .text-zinc-700,
+.fs-night .text-zinc-600 {
+  color: #d4d4d8;
+}
+.fs-night .text-zinc-500,
+.fs-night .text-zinc-400 {
+  color: #a1a1aa;
+}
+.fs-night .hover\:bg-zinc-50:hover,
+.fs-night .hover\:bg-zinc-100:hover {
+  background-color: #1c1e28;
+}
+.fs-night .hover\:text-zinc-900:hover,
+.fs-night .hover\:text-zinc-950:hover {
+  color: #ffffff;
+}
+.fs-night .hover\:border-zinc-300:hover,
+.fs-night .hover\:border-zinc-900:hover {
+  border-color: #ff4d00;
+}
+.fs-night .to-white {
+  --tw-gradient-to: #12141c var(--tw-gradient-to-position);
 }

@@ -1,13 +1,17 @@
 import { NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/server/auth";
+import { errorResponse, tooManyAttempts } from "@/lib/server/http";
 import { getFeeSettings } from "@/lib/server/pricing";
+import { rateLimit } from "@/lib/server/rate-limit";
 import { scrapeAnyUrl } from "@/lib/server/scraper";
 
 export async function POST(request: Request) {
-  const user = getAuthUser(request);
+  const user = await getAuthUser(request);
   if (!user) {
     return NextResponse.json({ detail: "Not authenticated" }, { status: 401 });
   }
+  const limit = rateLimit(`scrape:${user.id}`, 30, 10 * 60 * 1000);
+  if (!limit.ok) return tooManyAttempts(limit.retryAfterSec);
 
   try {
     const body = await request.json();
@@ -16,13 +20,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ detail: "URL is required" }, { status: 400 });
     }
 
-    const settings = getFeeSettings();
+    const settings = await getFeeSettings();
     const result = await scrapeAnyUrl(url, settings.cny_to_eur);
     return NextResponse.json(result);
-  } catch (err: any) {
-    return NextResponse.json(
-      { detail: err.message || "Scraping failed" },
-      { status: 500 }
-    );
+  } catch (err) {
+    return errorResponse("scrape", err);
   }
 }

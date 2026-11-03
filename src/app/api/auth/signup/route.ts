@@ -1,38 +1,41 @@
 import { NextResponse } from "next/server";
 import { sql } from "drizzle-orm";
 import { db, users } from "@/lib/server/db";
-import { hashPassword, createSession } from "@/lib/server/auth";
+import { createSession } from "@/lib/server/auth";
+import { errorResponse, PublicError, tooManyAttempts } from "@/lib/server/http";
+import {
+  hashPassword,
+  MAX_PASSWORD_LENGTH,
+  MIN_PASSWORD_LENGTH,
+} from "@/lib/server/passwords";
+import { clientIp, rateLimit } from "@/lib/server/rate-limit";
+import { SESSION_COOKIE, sessionCookieOptions } from "@/lib/server/session-cookie";
 
 export async function POST(request: Request) {
+  const limit = rateLimit(`signup:${clientIp(request)}`, 5, 60 * 60 * 1000);
+  if (!limit.ok) return tooManyAttempts(limit.retryAfterSec);
+
   try {
     const body = await request.json();
-    const name = (body.name || "").trim();
-    const password = (body.password || "").trim();
+    const name = String(body.name || "").trim();
+    const password = String(body.password || "");
 
-    if (name.length < 2) {
-      return NextResponse.json(
-        { detail: "Username must be at least 2 characters." },
-        { status: 400 }
-      );
+    if (name.length < 2 || name.length > 40) {
+      throw new PublicError("Username must be between 2 and 40 characters.");
     }
-    if (password.length < 3) {
-      return NextResponse.json(
-        { detail: "Password must be at least 3 characters." },
-        { status: 400 }
-      );
+    if (password.length < MIN_PASSWORD_LENGTH || password.length > MAX_PASSWORD_LENGTH) {
+      throw new PublicError(`Password must be at least ${MIN_PASSWORD_LENGTH} characters.`);
     }
 
-    const existing = db
-      .select({ id: users.id })
-      .from(users)
-      .where(sql`LOWER(${users.name}) = LOWER(${name})`)
-      .get();
+    const existing = (
+      await db
+        .select({ id: users.id })
+        .from(users)
+        .where(sql`LOWER(${users.name}) = LOWER(${name})`)
+    )[0];
 
     if (existing) {
-      return NextResponse.json(
-        { detail: "Username already taken." },
-        { status: 400 }
-      );
+      throw new PublicError("Username already taken.");
     }
 
     const parts = name.split(/\s+/).filter(Boolean);
@@ -43,36 +46,31 @@ export async function POST(request: Request) {
       initials = parts[0].slice(0, 2).toUpperCase();
     }
 
-    const role = name.toLowerCase() === "mathis" ? "admin" : "friend";
-    const pwHash = hashPassword(password);
+    const inserted = (
+      await db
+        .insert(users)
+        .values({
+          name,
+          passwordHash: hashPassword(password),
+          role: "friend",
+          avatarInitials: initials,
+          disabled: 0,
+        })
+        .returning({ id: users.id })
+    )[0];
 
-    const inserted = db
-      .insert(users)
-      .values({
-        name,
-        passwordHash: pwHash,
-        role,
-        avatarInitials: initials,
-      })
-      .returning({ id: users.id })
-      .get();
-
-    const userId = inserted.id;
-    const token = createSession(userId);
-
-    return NextResponse.json({
-      token,
+    const token = await createSession(inserted.id);
+    const response = NextResponse.json({
       user: {
-        id: userId,
+        id: inserted.id,
         name,
-        role,
+        role: "friend",
         avatar_initials: initials,
       },
     });
-  } catch (err: any) {
-    return NextResponse.json(
-      { detail: err.message || "Signup failed" },
-      { status: 500 }
-    );
+    response.cookies.set(SESSION_COOKIE, token, sessionCookieOptions());
+    return response;
+  } catch (err) {
+    return errorResponse("signup", err);
   }
 }

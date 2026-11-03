@@ -7,7 +7,7 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const user = getAuthUser(request);
+  const user = await getAuthUser(request);
   if (!user || user.role !== "admin") {
     return NextResponse.json({ detail: "Admin access required" }, { status: 403 });
   }
@@ -18,11 +18,12 @@ export async function POST(
     return NextResponse.json({ detail: "Invalid user ID" }, { status: 400 });
   }
 
-  const targetUser = db
-    .select({ id: users.id, name: users.name })
-    .from(users)
-    .where(eq(users.id, targetUserId))
-    .get();
+  const targetUser = (
+    await db
+      .select({ id: users.id, name: users.name })
+      .from(users)
+      .where(eq(users.id, targetUserId))
+  )[0];
 
   if (!targetUser) {
     return NextResponse.json({ detail: "User not found" }, { status: 404 });
@@ -54,16 +55,17 @@ export async function POST(
     }
 
     if (Object.keys(updateValues).length > 0) {
-      db.update(users)
+      await db
+        .update(users)
         .set(updateValues)
-        .where(eq(users.id, targetUserId))
-        .run();
+        .where(eq(users.id, targetUserId));
     }
 
     return NextResponse.json({ ok: true });
-  } catch (err: any) {
+  } catch (err) {
+    console.error("member-fees", err);
     return NextResponse.json(
-      { detail: err.message || "Failed to update member fees" },
+      { detail: "Something went wrong. Please try again." },
       { status: 500 }
     );
   }

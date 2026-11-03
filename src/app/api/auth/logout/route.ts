@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { deleteSession } from "@/lib/server/auth";
+import { readCookie, SESSION_COOKIE, sessionCookieOptions } from "@/lib/server/session-cookie";
 
 export async function POST(request: Request) {
-  const authHeader = request.headers.get("authorization");
-  if (authHeader && authHeader.toLowerCase().startsWith("bearer ")) {
-    const token = authHeader.slice(7).trim();
-    deleteSession(token);
-  }
-  return NextResponse.json({ ok: true });
+  const token = readCookie(request, SESSION_COOKIE);
+  if (token) await deleteSession(token);
+  const response = NextResponse.json({ ok: true });
+  response.cookies.set(SESSION_COOKIE, "", { ...sessionCookieOptions(), maxAge: 0 });
+  return response;
 }

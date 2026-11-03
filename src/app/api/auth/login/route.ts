@@ -1,13 +1,17 @@
 import { NextResponse } from "next/server";
-import { sql } from "drizzle-orm";
-import { db, users } from "@/lib/server/db";
-import { hashPassword, createSession } from "@/lib/server/auth";
+import { authenticateUser, createSession } from "@/lib/server/auth";
+import { errorResponse, tooManyAttempts } from "@/lib/server/http";
+import { clientIp, rateLimit } from "@/lib/server/rate-limit";
+import { SESSION_COOKIE, sessionCookieOptions } from "@/lib/server/session-cookie";
 
 export async function POST(request: Request) {
+  const limit = rateLimit(`login:${clientIp(request)}`, 10, 15 * 60 * 1000);
+  if (!limit.ok) return tooManyAttempts(limit.retryAfterSec);
+
   try {
     const body = await request.json();
-    const name = (body.name || "").trim();
-    const password = (body.password || "").trim();
+    const name = String(body.name || "").trim();
+    const password = String(body.password || "");
 
     if (!name || !password) {
       return NextResponse.json(
@@ -16,40 +20,24 @@ export async function POST(request: Request) {
       );
     }
 
-    const user = db
-      .select()
-      .from(users)
-      .where(sql`LOWER(${users.name}) = LOWER(${name})`)
-      .get();
-
-    if (!user) {
-      return NextResponse.json(
-        { detail: "User not found. Check credentials or register." },
-        { status: 401 }
-      );
+    const result = await authenticateUser(name, password);
+    if (!result.ok) {
+      return NextResponse.json({ detail: result.detail }, { status: result.status });
     }
 
-    if (user.passwordHash !== hashPassword(password)) {
-      return NextResponse.json(
-        { detail: "Incorrect password or PIN." },
-        { status: 401 }
-      );
-    }
-
-    const token = createSession(user.id);
-    return NextResponse.json({
-      token,
+    const token = await createSession(result.userId);
+    const response = NextResponse.json({
       user: {
-        id: user.id,
-        name: user.name,
-        role: user.role,
-        avatar_initials: user.avatarInitials,
+        id: result.userId,
+        name: result.name,
+        role: result.role,
+        avatar_initials: result.avatar_initials,
+        must_setup: result.must_setup,
       },
     });
-  } catch (err: any) {
-    return NextResponse.json(
-      { detail: err.message || "Internal server error" },
-      { status: 500 }
-    );
+    response.cookies.set(SESSION_COOKIE, token, sessionCookieOptions());
+    return response;
+  } catch (err) {
+    return errorResponse("login", err);
   }
 }

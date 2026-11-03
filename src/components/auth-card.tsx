@@ -1,46 +1,78 @@
 "use client";
 
-import React, { useState } from "react";
-import { ShoppingBag, ShieldCheck, UserPlus, LogIn, ArrowRight } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import { UserPlus, LogIn, ArrowRight, Mail } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { User } from "@/lib/types";
 
 interface AuthCardProps {
-  onAuthenticated: (token: string, user: User) => void;
+  onAuthenticated: (user: User) => void;
 }
 
+type Step = "details" | "code";
+
+const heroSlides = [
+  { src: "/brand/slides/loud.jpg", name: "Loud Luxury" },
+  { src: "/brand/slides/stairs.jpg", name: "The Lineup" },
+  { src: "/brand/slides/duo.jpg", name: "Two Worlds" },
+];
+
 export function AuthCard({ onAuthenticated }: AuthCardProps) {
+  const [slide, setSlide] = useState(0);
+
+  useEffect(() => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const timer = window.setInterval(() => {
+      setSlide((current) => (current + 1) % heroSlides.length);
+    }, 5200);
+    return () => window.clearInterval(timer);
+  }, []);
+  const [loginEmail, setLoginEmail] = useState("");
+  const [loginCode, setLoginCode] = useState("");
+  const [loginStep, setLoginStep] = useState<Step>("details");
+  const [passwordMode, setPasswordMode] = useState(false);
   const [loginName, setLoginName] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
+
   const [signupName, setSignupName] = useState("");
-  const [signupPassword, setSignupPassword] = useState("");
+  const [signupEmail, setSignupEmail] = useState("");
+  const [signupCode, setSignupCode] = useState("");
+  const [signupStep, setSignupStep] = useState<Step>("details");
+
+  const [setupUser, setSetupUser] = useState<User | null>(null);
+  const [setupStep, setSetupStep] = useState<Step>("details");
+  const [setupEmail, setSetupEmail] = useState("");
+  const [setupCode, setSetupCode] = useState("");
+  const [setupPassword, setSetupPassword] = useState("");
+  const [setupPassword2, setSetupPassword2] = useState("");
+
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  async function handleLogin(e: React.FormEvent) {
-    e.preventDefault();
-    await performLogin(loginName, loginPassword);
-  }
-
-  async function performLogin(name: string, password: string) {
+  async function sendCode(purpose: "login" | "signup") {
     setError(null);
     setLoading(true);
     try {
-      const res = await fetch("/api/auth/login", {
+      const res = await fetch("/api/auth/email/send", {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, password }),
+        body: JSON.stringify({
+          purpose,
+          email: purpose === "login" ? loginEmail : signupEmail,
+          name: purpose === "signup" ? signupName : undefined,
+        }),
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(data.detail || "Login failed");
+        setError(data.detail || "Could not send the email");
         return;
       }
-      onAuthenticated(data.token, data.user);
+      if (purpose === "login") setLoginStep("code");
+      else setSignupStep("code");
     } catch {
       setError("Could not connect to server");
     } finally {
@@ -48,22 +80,109 @@ export function AuthCard({ onAuthenticated }: AuthCardProps) {
     }
   }
 
-  async function handleSignup(e: React.FormEvent) {
+  async function verifyCode(purpose: "login" | "signup") {
+    setError(null);
+    setLoading(true);
+    try {
+      const res = await fetch("/api/auth/email/verify", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          purpose,
+          email: purpose === "login" ? loginEmail : signupEmail,
+          code: purpose === "login" ? loginCode : signupCode,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.detail || "Code was not accepted");
+        return;
+      }
+      onAuthenticated(data.user);
+    } catch {
+      setError("Could not connect to server");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handlePasswordLogin(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     setLoading(true);
     try {
-      const res = await fetch("/api/auth/signup", {
+      const res = await fetch("/api/auth/login", {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: signupName, password: signupPassword }),
+        body: JSON.stringify({ name: loginName, password: loginPassword }),
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(data.detail || "Sign up failed");
+        setError(data.detail || "Login failed");
         return;
       }
-      onAuthenticated(data.token, data.user);
+      if (data.user?.must_setup === 1) {
+        setSetupUser(data.user);
+        setError(null);
+        return;
+      }
+      onAuthenticated(data.user);
+    } catch {
+      setError("Could not connect to server");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function setupSendCode() {
+    setError(null);
+    setLoading(true);
+    try {
+      const res = await fetch("/api/auth/setup/email", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: setupEmail }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.detail || "Could not send the email");
+        return;
+      }
+      setSetupStep("code");
+    } catch {
+      setError("Could not connect to server");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function setupFinish() {
+    setError(null);
+    if (setupPassword !== setupPassword2) {
+      setError("Passwords do not match");
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await fetch("/api/auth/setup/complete", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: setupEmail,
+          code: setupCode,
+          new_password: setupPassword,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.detail || "Setup failed");
+        return;
+      }
+      onAuthenticated(data.user);
     } catch {
       setError("Could not connect to server");
     } finally {
@@ -72,177 +191,372 @@ export function AuthCard({ onAuthenticated }: AuthCardProps) {
   }
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-b from-forest-50/60 via-background to-background px-4 py-12">
-      <div className="mb-6 flex items-center gap-2.5">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-mandarine-500 text-white shadow-md shadow-mandarine-500/25 ring-2 ring-crest-400/50">
-          <ShoppingBag className="h-5 w-5" />
-        </div>
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="text-xl font-extrabold tracking-tight text-forest-950">FashionOrders</span>
-            <span className="rounded-full bg-crest-100 border border-crest-300 px-2 py-0.5 font-mono text-[10px] font-bold text-crest-900">
-              NEXT.JS + SHADCN
-            </span>
+    <div className="grid min-h-screen bg-[#07080c] text-white lg:grid-cols-[1.15fr_0.85fr]">
+      <section className="relative min-h-[48vh] overflow-hidden lg:min-h-screen">
+        {heroSlides.map((item, index) => (
+          <img
+            key={item.src}
+            src={item.src}
+            alt=""
+            className={`absolute inset-0 h-full w-full object-cover transition-[opacity,transform] duration-[2500ms] ease-in-out ${
+              index === slide ? "opacity-100 scale-100" : "opacity-0 scale-[1.05]"
+            }`}
+          />
+        ))}
+        <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/45 to-transparent" />
+        <div className="absolute left-5 top-5 flex items-center gap-3 rounded-md bg-black/55 px-3 py-2 backdrop-blur-sm">
+          <span className="inline-flex h-10 w-10 overflow-hidden rounded-md bg-black">
+            <img src="/brand/mark.png" alt="" className="h-full w-full scale-150 object-cover" />
+          </span>
+          <div>
+            <div className="font-display text-3xl font-bold italic leading-none tracking-wide">FASHION SUPPLY</div>
+            <p className="mt-1 text-[10px] font-semibold tracking-[0.28em] text-white/70">FAST FASHION FOR YOUR NEXT LOOK</p>
           </div>
-          <p className="text-xs font-medium text-forest-700/70">Curated Fashion Hauls &bull; Yupoo &bull; Weidian &bull; Taobao</p>
         </div>
-      </div>
+        <div className="absolute bottom-5 left-5 flex items-center gap-3">
+          <div className="flex gap-2">
+            {heroSlides.map((item, index) => (
+              <button
+                key={item.src}
+                type="button"
+                aria-label={item.name}
+                onClick={() => setSlide(index)}
+                className={`h-1.5 rounded-full transition-all ${index === slide ? "w-8 bg-[#FF4D00]" : "w-3 bg-white/70"}`}
+              />
+            ))}
+          </div>
+          <p className="text-[11px] font-semibold tracking-[0.22em] text-white">{heroSlides[slide].name}</p>
+        </div>
+      </section>
 
-      <Card className="w-full max-w-md border-forest-200/80 shadow-lg shadow-forest-950/5 bg-white">
+      <section className="flex items-center justify-center px-4 py-10">
+      {setupUser ? (
+      <Card className="w-full max-w-md border-white/10 bg-[#12141c] text-white shadow-none">
         <CardHeader className="space-y-1 pb-4">
-          <CardTitle className="text-xl font-bold tracking-tight text-forest-950">Account Access</CardTitle>
-          <CardDescription className="text-forest-800/60">
-            Sign in to your personal member dashboard or create a new friend account.
+          <CardTitle className="text-xl font-bold tracking-tight text-white">Secure your account</CardTitle>
+          <CardDescription className="text-white/60">
+            Welcome, {setupUser.name}! One-time setup: verify your email, then choose your own password.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {setupStep === "details" ? (
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                void setupSendCode();
+              }}
+              className="space-y-3.5"
+            >
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-white/80">Your Email</label>
+                <Input
+                  type="email"
+                  placeholder="you@example.com"
+                  value={setupEmail}
+                  onChange={(e) => setSetupEmail(e.target.value)}
+                  className="focus-visible:ring-mandarine-500 border-white/15"
+                  required
+                />
+              </div>
+              <p className="text-xs text-white/50">
+                We email you a 6-digit code to verify this address is really yours.
+              </p>
+              {error && <ErrorBox message={error} />}
+              <Button type="submit" variant="mandarine" className="w-full" disabled={loading}>
+                <Mail className="mr-1.5 h-4 w-4" />
+                {loading ? "Sending..." : "Send verification code"}
+              </Button>
+            </form>
+          ) : (
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                void setupFinish();
+              }}
+              className="space-y-3.5"
+            >
+              <p className="text-xs text-white/70">
+                Enter the 6-digit code sent to <span className="font-semibold">{setupEmail}</span>.
+              </p>
+              <Input
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                placeholder="123456"
+                value={setupCode}
+                onChange={(e) => setSetupCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                className="focus-visible:ring-mandarine-500 border-white/15 text-center font-mono text-lg tracking-[0.3em]"
+                required
+              />
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-white/80">New Password</label>
+                <Input
+                  type="password"
+                  placeholder="At least 8 characters"
+                  value={setupPassword}
+                  onChange={(e) => setSetupPassword(e.target.value)}
+                  className="focus-visible:ring-mandarine-500 border-white/15"
+                  required
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-white/80">Repeat Password</label>
+                <Input
+                  type="password"
+                  placeholder="Same password again"
+                  value={setupPassword2}
+                  onChange={(e) => setSetupPassword2(e.target.value)}
+                  className="focus-visible:ring-mandarine-500 border-white/15"
+                  required
+                />
+              </div>
+              {error && <ErrorBox message={error} />}
+              <Button
+                type="submit"
+                variant="mandarine"
+                className="w-full"
+                disabled={loading || setupCode.length !== 6 || setupPassword.length < 8}
+              >
+                {loading ? "Saving..." : "Verify email & set password"}
+                <ArrowRight className="ml-1.5 h-4 w-4" />
+              </Button>
+              <button
+                type="button"
+                className="w-full text-xs font-medium text-white/60 underline decoration-white/30"
+                onClick={() => {
+                  setSetupStep("details");
+                  setSetupCode("");
+                  setError(null);
+                }}
+              >
+                Use a different email
+              </button>
+            </form>
+          )}
+        </CardContent>
+      </Card>
+      ) : (
+      <Card className="w-full max-w-md border-white/10 bg-[#12141c] text-white shadow-none">
+        <CardHeader className="space-y-1 pb-4">
+          <CardTitle className="text-xl font-bold tracking-tight text-white">Account Access</CardTitle>
+          <CardDescription className="text-white/60">
+            We email you a 6-digit code. No password is stored for new accounts.
           </CardDescription>
         </CardHeader>
 
         <CardContent>
           <Tabs defaultValue="login" className="w-full" onValueChange={() => setError(null)}>
-            <TabsList className="grid w-full grid-cols-2 mb-4 bg-forest-100/60">
-              <TabsTrigger value="login" className="data-[state=active]:bg-white data-[state=active]:text-forest-950 font-semibold">
+            <TabsList className="grid w-full grid-cols-2 mb-4 bg-white/10">
+              <TabsTrigger value="login" className="data-[state=active]:bg-[#FF4D00] data-[state=active]:text-white font-semibold text-white/70">
                 <LogIn className="mr-1.5 h-3.5 w-3.5" />
                 Sign In
               </TabsTrigger>
-              <TabsTrigger value="signup" className="data-[state=active]:bg-white data-[state=active]:text-forest-950 font-semibold">
+              <TabsTrigger value="signup" className="data-[state=active]:bg-[#FF4D00] data-[state=active]:text-white font-semibold text-white/70">
                 <UserPlus className="mr-1.5 h-3.5 w-3.5" />
                 Sign Up
               </TabsTrigger>
             </TabsList>
 
             <TabsContent value="login">
-              <form onSubmit={handleLogin} className="space-y-3.5">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-forest-900">Username</label>
-                  <Input
-                    placeholder="e.g. Tom Luis, Fynn, Mathis"
-                    value={loginName}
-                    onChange={(e) => setLoginName(e.target.value)}
-                    className="focus-visible:ring-mandarine-500 border-forest-200"
-                    required
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-forest-900">Password / PIN</label>
-                  <Input
-                    type="password"
-                    placeholder="••••"
-                    value={loginPassword}
-                    onChange={(e) => setLoginPassword(e.target.value)}
-                    className="focus-visible:ring-mandarine-500 border-forest-200"
-                    required
-                  />
-                </div>
-                {error && (
-                  <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-700">
-                    {error}
+              {passwordMode ? (
+                <form onSubmit={handlePasswordLogin} className="space-y-3.5">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-white/80">Username</label>
+                    <Input
+                      placeholder="Your username"
+                      value={loginName}
+                      onChange={(e) => setLoginName(e.target.value)}
+                      className="focus-visible:ring-mandarine-500 border-white/15"
+                      required
+                    />
                   </div>
-                )}
-                <Button type="submit" variant="mandarine" className="w-full" disabled={loading}>
-                  {loading ? "Signing in..." : "Sign In to Haul"}
-                  <ArrowRight className="ml-1.5 h-4 w-4" />
-                </Button>
-              </form>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-white/80">Password</label>
+                    <Input
+                      type="password"
+                      placeholder="••••"
+                      value={loginPassword}
+                      onChange={(e) => setLoginPassword(e.target.value)}
+                      className="focus-visible:ring-mandarine-500 border-white/15"
+                      required
+                    />
+                  </div>
+                  {error && <ErrorBox message={error} />}
+                  <Button type="submit" variant="mandarine" className="w-full" disabled={loading}>
+                    {loading ? "Signing in..." : "Sign In to Haul"}
+                    <ArrowRight className="ml-1.5 h-4 w-4" />
+                  </Button>
+                  <button
+                    type="button"
+                    className="w-full text-xs font-medium text-white/60 underline decoration-white/30"
+                    onClick={() => {
+                      setPasswordMode(false);
+                      setError(null);
+                    }}
+                  >
+                    Use email code instead
+                  </button>
+                </form>
+              ) : loginStep === "details" ? (
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    void sendCode("login");
+                  }}
+                  className="space-y-3.5"
+                >
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-white/80">Email</label>
+                    <Input
+                      type="email"
+                      placeholder="you@example.com"
+                      value={loginEmail}
+                      onChange={(e) => setLoginEmail(e.target.value)}
+                      className="focus-visible:ring-mandarine-500 border-white/15"
+                      required
+                    />
+                  </div>
+                  {error && <ErrorBox message={error} />}
+                  <Button type="submit" variant="mandarine" className="w-full" disabled={loading}>
+                    <Mail className="mr-1.5 h-4 w-4" />
+                    {loading ? "Sending..." : "Email me a code"}
+                  </Button>
+                  <button
+                    type="button"
+                    className="w-full text-xs font-medium text-white/60 underline decoration-white/30"
+                    onClick={() => {
+                      setPasswordMode(true);
+                      setError(null);
+                    }}
+                  >
+                    Sign in with username and password
+                  </button>
+                </form>
+              ) : (
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    void verifyCode("login");
+                  }}
+                  className="space-y-3.5"
+                >
+                  <p className="text-xs text-white/70">
+                    Enter the 6-digit code sent to <span className="font-semibold">{loginEmail}</span>.
+                  </p>
+                  <Input
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    placeholder="123456"
+                    value={loginCode}
+                    onChange={(e) => setLoginCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                    className="focus-visible:ring-mandarine-500 border-white/15 text-center font-mono text-lg tracking-[0.3em]"
+                    required
+                  />
+                  {error && <ErrorBox message={error} />}
+                  <Button type="submit" variant="mandarine" className="w-full" disabled={loading || loginCode.length !== 6}>
+                    {loading ? "Checking..." : "Sign In to Haul"}
+                    <ArrowRight className="ml-1.5 h-4 w-4" />
+                  </Button>
+                  <button
+                    type="button"
+                    className="w-full text-xs font-medium text-white/60 underline decoration-white/30"
+                    onClick={() => {
+                      setLoginStep("details");
+                      setLoginCode("");
+                      setError(null);
+                    }}
+                  >
+                    Use a different email
+                  </button>
+                </form>
+              )}
             </TabsContent>
 
             <TabsContent value="signup">
-              <form onSubmit={handleSignup} className="space-y-3.5">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-zinc-700">Your Name / Username</label>
-                  <Input
-                    placeholder="e.g. Leon, Max, Anna"
-                    value={signupName}
-                    onChange={(e) => setSignupName(e.target.value)}
-                    required
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-zinc-700">Create Password / PIN</label>
-                  <Input
-                    type="password"
-                    placeholder="At least 3 characters"
-                    value={signupPassword}
-                    onChange={(e) => setSignupPassword(e.target.value)}
-                    required
-                  />
-                </div>
-                {error && (
-                  <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-700">
-                    {error}
+              {signupStep === "details" ? (
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    void sendCode("signup");
+                  }}
+                  className="space-y-3.5"
+                >
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-white/80">Your Name</label>
+                    <Input
+                      placeholder="e.g. Leon, Max, Anna"
+                      value={signupName}
+                      onChange={(e) => setSignupName(e.target.value)}
+                      required
+                    />
                   </div>
-                )}
-                <Button type="submit" variant="forest" className="w-full" disabled={loading}>
-                  {loading ? "Creating Account..." : "Create Friend Account"}
-                  <UserPlus className="ml-1.5 h-4 w-4" />
-                </Button>
-              </form>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-white/80">Email</label>
+                    <Input
+                      type="email"
+                      placeholder="you@example.com"
+                      value={signupEmail}
+                      onChange={(e) => setSignupEmail(e.target.value)}
+                      required
+                    />
+                  </div>
+                  {error && <ErrorBox message={error} />}
+                  <Button type="submit" variant="mandarine" className="w-full" disabled={loading}>
+                    <Mail className="mr-1.5 h-4 w-4" />
+                    {loading ? "Sending..." : "Email me a code"}
+                  </Button>
+                </form>
+              ) : (
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    void verifyCode("signup");
+                  }}
+                  className="space-y-3.5"
+                >
+                  <p className="text-xs text-white/70">
+                    Enter the 6-digit code sent to <span className="font-semibold">{signupEmail}</span>.
+                  </p>
+                  <Input
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    placeholder="123456"
+                    value={signupCode}
+                    onChange={(e) => setSignupCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                    className="text-center font-mono text-lg tracking-[0.3em]"
+                    required
+                  />
+                  {error && <ErrorBox message={error} />}
+                  <Button type="submit" variant="mandarine" className="w-full" disabled={loading || signupCode.length !== 6}>
+                    <UserPlus className="mr-1.5 h-4 w-4" />
+                    {loading ? "Creating Account..." : "Create account"}
+                  </Button>
+                  <button
+                    type="button"
+                    className="w-full text-xs font-medium text-white/60 underline decoration-white/30"
+                    onClick={() => {
+                      setSignupStep("details");
+                      setSignupCode("");
+                      setError(null);
+                    }}
+                  >
+                    Change name or email
+                  </button>
+                </form>
+              )}
             </TabsContent>
           </Tabs>
-
-          {/* Pre-seeded 1-click quick login accounts */}
-          <div className="mt-6 pt-5 border-t border-forest-100">
-            <div className="mb-2.5 flex items-center justify-between">
-              <span className="font-mono text-[11px] font-bold uppercase tracking-wider text-forest-700">
-                1-Click Demo Login (Pre-Seeded)
-              </span>
-            </div>
-            <div className="grid grid-cols-1 gap-2">
-              <button
-                type="button"
-                onClick={() => performLogin("Tom Luis", "1234")}
-                className="flex items-center justify-between rounded-lg border border-forest-200/80 bg-forest-50/40 px-3 py-2 text-left transition hover:bg-forest-100/60"
-              >
-                <div className="flex items-center gap-2.5">
-                  <span className="flex h-7 w-7 items-center justify-center rounded-md bg-forest-800 font-mono text-xs font-bold text-white">
-                    TL
-                  </span>
-                  <div>
-                    <div className="text-xs font-bold text-forest-950">Tom Luis</div>
-                    <div className="text-[11px] text-forest-700/80">Member View &middot; 13 Yupoo Items (PIN: 1234)</div>
-                  </div>
-                </div>
-                <Badge variant="forest-soft">Member</Badge>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => performLogin("Fynn", "1234")}
-                className="flex items-center justify-between rounded-lg border border-forest-200/80 bg-forest-50/40 px-3 py-2 text-left transition hover:bg-forest-100/60"
-              >
-                <div className="flex items-center gap-2.5">
-                  <span className="flex h-7 w-7 items-center justify-center rounded-md bg-forest-800 font-mono text-xs font-bold text-white">
-                    FY
-                  </span>
-                  <div>
-                    <div className="text-xs font-bold text-forest-950">Fynn</div>
-                    <div className="text-[11px] text-forest-700/80">Member View &middot; 27 Yupoo Items (PIN: 1234)</div>
-                  </div>
-                </div>
-                <Badge variant="forest-soft">Member</Badge>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => performLogin("Mathis", "admin123")}
-                className="flex items-center justify-between rounded-lg border border-mandarine-500/30 bg-mandarine-50/40 px-3 py-2 text-left transition hover:bg-mandarine-100/60 shadow-xs"
-              >
-                <div className="flex items-center gap-2.5">
-                  <span className="flex h-7 w-7 items-center justify-center rounded-md bg-mandarine-500 font-mono text-xs font-bold text-white shadow-xs">
-                    MA
-                  </span>
-                  <div>
-                    <div className="flex items-center gap-1.5 text-xs font-bold text-mandarine-950">
-                      <span>Mathis</span>
-                      <ShieldCheck className="h-3.5 w-3.5 text-mandarine-600" />
-                    </div>
-                    <div className="text-[11px] text-mandarine-800/80">Separated Admin Backend + Personal View (PW: admin123)</div>
-                  </div>
-                </div>
-                <Badge variant="crest-solid">Admin Backend</Badge>
-              </button>
-            </div>
-          </div>
         </CardContent>
       </Card>
+      )}
+      </section>
+    </div>
+  );
+}
+
+function ErrorBox({ message }: { message: string }) {
+  return (
+    <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-700">
+      {message}
     </div>
   );
 }

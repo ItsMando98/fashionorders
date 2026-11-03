@@ -11,6 +11,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { FriendDirectoryEntry } from "@/lib/types";
 
 interface ShareOrderDialogProps {
@@ -32,7 +33,14 @@ export function ShareOrderDialog({
 }: ShareOrderDialogProps) {
   const [shareAll, setShareAll] = useState(shareAllFriends);
   const [selectedIds, setSelectedIds] = useState<number[]>(sharedTargetIds);
+  const [extraFriends, setExtraFriends] = useState<FriendDirectoryEntry[]>([]);
+  const [lookupName, setLookupName] = useState("");
+  const [lookupError, setLookupError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const visibleFriends = [...friendsDirectory];
+  for (const extra of extraFriends) {
+    if (!visibleFriends.some((friend) => friend.id === extra.id)) visibleFriends.push(extra);
+  }
 
   useEffect(() => {
     setShareAll(shareAllFriends);
@@ -65,7 +73,7 @@ export function ShareOrderDialog({
             <span>Share My Order with Friends</span>
           </DialogTitle>
           <DialogDescription>
-            Choose whether all registered friends can see your shared haul items or select specific friends.
+            Share with every account, or add someone by their exact username. Other accounts stay hidden.
           </DialogDescription>
         </DialogHeader>
 
@@ -83,10 +91,10 @@ export function ShareOrderDialog({
               <Globe className="mt-0.5 h-4 w-4 text-zinc-700 shrink-0" />
               <div>
                 <div className="text-sm font-semibold text-zinc-900">
-                  Share with all friends in the app
+                  Share with every account
                 </div>
                 <p className="text-xs text-zinc-500 mt-0.5">
-                  All logged-in members can view your shared items in &ldquo;Shared by Friends&rdquo; and copy links to their cart.
+                  Every logged-in account can view items you mark as shared.
                 </p>
               </div>
             </div>
@@ -105,8 +113,49 @@ export function ShareOrderDialog({
               <span>Or Share with Specific Friends</span>
             </div>
 
+            <div className="flex gap-2">
+              <Input
+                value={lookupName}
+                onChange={(e) => setLookupName(e.target.value)}
+                placeholder="Add by exact username"
+                disabled={shareAll}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                disabled={shareAll || lookupName.trim().length < 2}
+                onClick={async () => {
+                  setLookupError(null);
+                  const res = await fetch("/api/users/lookup", {
+                    method: "POST",
+                    credentials: "include",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ name: lookupName.trim() }),
+                  });
+                  const data = await res.json();
+                  if (!res.ok) {
+                    setLookupError(data.detail || "No account with that username.");
+                    return;
+                  }
+                  setExtraFriends((prev) =>
+                    prev.some((friend) => friend.id === data.user.id) ? prev : [...prev, data.user]
+                  );
+                  setSelectedIds((prev) =>
+                    prev.includes(data.user.id) ? prev : [...prev, data.user.id]
+                  );
+                  setLookupName("");
+                }}
+              >
+                Add
+              </Button>
+            </div>
+            {lookupError && <p className="text-xs text-red-600">{lookupError}</p>}
+
             <div className="max-h-48 space-y-1.5 overflow-y-auto rounded-lg border border-zinc-200 p-2">
-              {friendsDirectory.map((f) => {
+              {visibleFriends.length === 0 && (
+                <p className="px-2 py-3 text-xs text-zinc-500">No one is listed until you add a username.</p>
+              )}
+              {visibleFriends.map((f) => {
                 const isSelected = shareAll || selectedIds.includes(f.id);
                 return (
                   <button

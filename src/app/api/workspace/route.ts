@@ -6,15 +6,15 @@ import { getFeeSettings, enrichItem, computeHaulSummary } from "@/lib/server/pri
 import { User, Item } from "@/lib/types";
 
 export async function GET(request: Request) {
-  const user = getAuthUser(request);
+  const user = await getAuthUser(request);
   if (!user) {
     return NextResponse.json({ detail: "Not authenticated" }, { status: 401 });
   }
 
-  const feeSettings = getFeeSettings();
+  const feeSettings = await getFeeSettings();
 
   // 1. Current user's own items
-  const myItemRows = db
+  const myItemRows = await db
     .select({
       id: items.id,
       user_id: items.userId,
@@ -48,14 +48,13 @@ export async function GET(request: Request) {
     })
     .from(items)
     .where(eq(items.userId, user.id))
-    .orderBy(desc(items.id))
-    .all();
+    .orderBy(desc(items.id));
 
   const myItems: Item[] = myItemRows.map((it) => enrichItem(it, user, feeSettings));
   const myHaulSummary = computeHaulSummary(myItems, user, feeSettings);
 
   // 2. Shared items from friends
-  const sharedRows = db
+  const sharedRows = await db
     .select({
       id: items.id,
       user_id: items.userId,
@@ -101,8 +100,7 @@ export async function GET(request: Request) {
         ))`
       )
     )
-    .orderBy(desc(items.id))
-    .all();
+    .orderBy(desc(items.id));
 
   const sharedItems: Item[] = sharedRows.map((it) => {
     const owner: User = {
@@ -115,11 +113,12 @@ export async function GET(request: Request) {
       custom_item_percent: null,
       custom_haul_percent: null,
     };
-    return enrichItem(it, owner, feeSettings);
+    const enriched = enrichItem(it, owner, feeSettings);
+    return { ...enriched, user_notes: "", admin_notes: "" };
   });
 
   // 3. Friends Directory
-  const friends = db
+  const friends = await db
     .select({
       id: users.id,
       name: users.name,
@@ -127,16 +126,30 @@ export async function GET(request: Request) {
       avatar_initials: users.avatarInitials,
     })
     .from(users)
-    .where(ne(users.id, user.id))
-    .orderBy(asc(users.name))
-    .all();
+    .where(
+      and(
+        ne(users.id, user.id),
+        eq(users.disabled, 0),
+        sql`(
+          EXISTS (
+            SELECT 1 FROM order_shares os
+            WHERE os.owner_id = ${user.id} AND os.shared_with_user_id = ${users.id}
+          )
+          OR EXISTS (
+            SELECT 1 FROM order_shares os
+            WHERE os.owner_id = ${users.id} AND os.shared_with_user_id = ${user.id}
+          )
+          OR ${users.shareAllFriends} = 1
+        )`
+      )
+    )
+    .orderBy(asc(users.name));
 
   // 4. Share targets
-  const shareTargetRows = db
+  const shareTargetRows = (await db
     .select({ sharedWithUserId: sql<number>`shared_with_user_id` })
     .from(sql`order_shares`)
-    .where(sql`owner_id = ${user.id}`)
-    .all() as { sharedWithUserId: number }[];
+    .where(sql`owner_id = ${user.id}`)) as { sharedWithUserId: number }[];
   const myShareTargets = shareTargetRows.map((r) => r.sharedWithUserId);
 
   // 5. Admin data
@@ -145,7 +158,7 @@ export async function GET(request: Request) {
   let adminHaulSummaries: any[] = [];
 
   if (user.role === "admin") {
-    const allUsers = db
+    const allUsers = (await db
       .select({
         id: users.id,
         name: users.name,
@@ -155,10 +168,10 @@ export async function GET(request: Request) {
         custom_item_fixed_eur: users.customItemFixedEur,
         custom_item_percent: users.customItemPercent,
         custom_haul_percent: users.customHaulPercent,
+        disabled: users.disabled,
       })
       .from(users)
-      .orderBy(asc(users.id))
-      .all() as User[];
+      .orderBy(asc(users.id))) as User[];
 
     adminUsers = allUsers;
     const usersMap = new Map<number, User>();
@@ -166,7 +179,7 @@ export async function GET(request: Request) {
       usersMap.set(u.id, u);
     }
 
-    const allItemRows = db
+    const allItemRows = await db
       .select({
         id: items.id,
         user_id: items.userId,
@@ -202,8 +215,7 @@ export async function GET(request: Request) {
       })
       .from(items)
       .innerJoin(users, eq(items.userId, users.id))
-      .orderBy(desc(items.id))
-      .all();
+      .orderBy(desc(items.id));
 
     adminAllItems = allItemRows.map((it) => {
       const owner = usersMap.get(it.user_id) || null;

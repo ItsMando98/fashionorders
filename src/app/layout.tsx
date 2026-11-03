@@ -1,10 +1,17 @@
 import type { Metadata } from "next";
-import { Plus_Jakarta_Sans, JetBrains_Mono } from "next/font/google";
+import { Barlow_Condensed, Plus_Jakarta_Sans, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 
 const sans = Plus_Jakarta_Sans({
   subsets: ["latin"],
   variable: "--font-sans",
+});
+
+const display = Barlow_Condensed({
+  subsets: ["latin"],
+  weight: ["600", "700"],
+  style: ["normal", "italic"],
+  variable: "--font-display",
 });
 
 const mono = JetBrains_Mono({
@@ -13,8 +20,8 @@ const mono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "FashionOrders — Next.js & shadcn Haul Platform",
-  description: "Multi-account Yupoo, Weidian & Taobao scraper, cart builder, order sharing, and admin backend.",
+  title: "Fashion Supply",
+  description: "Shared fashion orders for your group.",
 };
 
 export default function RootLayout({
@@ -24,7 +31,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${sans.variable} ${mono.variable} font-sans`}>{children}</body>
+      <body className={`${sans.variable} ${display.variable} ${mono.variable} font-sans`}>{children}</body>
     </html>
   );
 }

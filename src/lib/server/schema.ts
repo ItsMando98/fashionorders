@@ -1,35 +1,43 @@
-import { sqliteTable, text, integer, real } from "drizzle-orm/sqlite-core";
+import { pgTable, text, integer, serial, doublePrecision } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
-export const users = sqliteTable("users", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+// Timestamps bleiben TEXT im selben Format wie bisher unter SQLite
+// ("YYYY-MM-DD HH:MM:SS", UTC), damit sich kein Verhalten aendert.
+const nowUtc = sql`to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS')`;
+
+export const users = pgTable("users", {
+  id: serial("id").primaryKey(),
   name: text("name").notNull().unique(),
   passwordHash: text("password_hash").notNull(),
   role: text("role").notNull().default("friend"),
   avatarInitials: text("avatar_initials").notNull().default("??"),
   shareAllFriends: integer("share_all_friends").notNull().default(0),
-  customItemFixedEur: real("custom_item_fixed_eur"),
-  customItemPercent: real("custom_item_percent"),
-  customHaulPercent: real("custom_haul_percent"),
+  customItemFixedEur: doublePrecision("custom_item_fixed_eur"),
+  customItemPercent: doublePrecision("custom_item_percent"),
+  customHaulPercent: doublePrecision("custom_haul_percent"),
+  disabled: integer("disabled").notNull().default(0),
+  mustSetup: integer("must_setup").notNull().default(0),
+  email: text("email").unique(),
+  bio: text("bio").notNull().default(""),
+  handle: text("handle"),
 });
 
-export const sessions = sqliteTable("sessions", {
+export const sessions = pgTable("sessions", {
   token: text("token").primaryKey(),
   userId: integer("user_id")
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
-  createdAt: text("created_at")
-    .notNull()
-    .default(sql`(datetime('now'))`),
+  createdAt: text("created_at").notNull().default(nowUtc),
+  expiresAt: text("expires_at"),
 });
 
-export const settings = sqliteTable("settings", {
+export const settings = pgTable("settings", {
   key: text("key").primaryKey(),
   value: text("value").notNull(),
 });
 
-export const items = sqliteTable("items", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const items = pgTable("items", {
+  id: serial("id").primaryKey(),
   userId: integer("user_id")
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
@@ -44,8 +52,8 @@ export const items = sqliteTable("items", {
   chosenSize: text("chosen_size").default(""),
   colorVariant: text("color_variant").default(""),
   quantity: integer("quantity").notNull().default(1),
-  priceCny: real("price_cny"),
-  shippingCny: real("shipping_cny").default(0),
+  priceCny: doublePrecision("price_cny"),
+  shippingCny: doublePrecision("shipping_cny").default(0),
   stage: text("stage").notNull().default("submitted"),
   orderStatus: text("order_status").notNull().default("Pending"),
   description: text("description").default(""),
@@ -54,28 +62,22 @@ export const items = sqliteTable("items", {
   trackingNumber: text("tracking_number").default(""),
   imageUrl: text("image_url").default(""),
   localImage: text("local_image").default(""),
-  createdAt: text("created_at")
-    .notNull()
-    .default(sql`(datetime('now'))`),
-  updatedAt: text("updated_at")
-    .notNull()
-    .default(sql`(datetime('now'))`),
-  isShared: integer("is_shared").notNull().default(1),
-  customFeeFixedEur: real("custom_fee_fixed_eur"),
-  customFeePercent: real("custom_fee_percent"),
+  createdAt: text("created_at").notNull().default(nowUtc),
+  updatedAt: text("updated_at").notNull().default(nowUtc),
+  isShared: integer("is_shared").notNull().default(0),
+  customFeeFixedEur: doublePrecision("custom_fee_fixed_eur"),
+  customFeePercent: doublePrecision("custom_fee_percent"),
 });
 
-export const orderShares = sqliteTable("order_shares", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const orderShares = pgTable("order_shares", {
+  id: serial("id").primaryKey(),
   ownerId: integer("owner_id")
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
   sharedWithUserId: integer("shared_with_user_id")
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
-  createdAt: text("created_at")
-    .notNull()
-    .default(sql`(datetime('now'))`),
+  createdAt: text("created_at").notNull().default(nowUtc),
 });
 
 export type UserRow = typeof users.$inferSelect;
@@ -85,3 +87,14 @@ export type InsertItem = typeof items.$inferInsert;
 export type SessionRow = typeof sessions.$inferSelect;
 export type SettingRow = typeof settings.$inferSelect;
 export type OrderShareRow = typeof orderShares.$inferSelect;
+
+export const loginCodes = pgTable("login_codes", {
+  id: serial("id").primaryKey(),
+  email: text("email").notNull(),
+  codeHash: text("code_hash").notNull(),
+  purpose: text("purpose").notNull(),
+  name: text("name"),
+  expiresAt: text("expires_at").notNull(),
+  attempts: integer("attempts").notNull().default(0),
+  createdAt: text("created_at").notNull().default(nowUtc),
+});

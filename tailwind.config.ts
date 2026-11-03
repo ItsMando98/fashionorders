@@ -52,7 +52,7 @@ const config: Config = {
           200: "#FDD6BF",
           300: "#FBB594",
           400: "#F98858",
-          500: "#F56A1E",
+          500: "#FF4D00",
           600: "#DC520F",
           700: "#B43C0C",
           800: "#8F3010",
@@ -101,6 +101,11 @@ const config: Config = {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
+      },
+      fontFamily: {
+        sans: ["var(--font-sans)", "sans-serif"],
+        display: ["var(--font-display)", "sans-serif"],
+        mono: ["var(--font-mono)", "monospace"],
       },
       borderRadius: {
         lg: "var(--radius)",

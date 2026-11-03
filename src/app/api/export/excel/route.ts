@@ -11,20 +11,20 @@ import { User, Item } from "@/lib/types";
 const CACHE_DIR = path.resolve(process.cwd(), ".cache_images");
 
 export async function GET(request: Request) {
-  const user = getAuthUser(request);
+  const user = await getAuthUser(request);
   if (!user) {
     return NextResponse.json({ detail: "Not authenticated" }, { status: 401 });
   }
 
-  const feeSettings = getFeeSettings();
+  const feeSettings = await getFeeSettings();
   const workbook = new ExcelJS.Workbook();
-  workbook.creator = "FashionOrders Haul Studio";
+  workbook.creator = "Fashion Supply";
   workbook.created = new Date();
 
   // Determine which users to export
   let usersToExport: User[] = [];
   if (user.role === "admin") {
-    const rows = db
+    const rows = (await db
       .select({
         id: users.id,
         name: users.name,
@@ -36,15 +36,14 @@ export async function GET(request: Request) {
         custom_haul_percent: users.customHaulPercent,
       })
       .from(users)
-      .orderBy(asc(users.id))
-      .all() as User[];
+      .orderBy(asc(users.id))) as User[];
     usersToExport = rows;
   } else {
     usersToExport = [user];
   }
 
   for (const member of usersToExport) {
-    const rawItems = db
+    const rawItems = await db
       .select({
         id: items.id,
         user_id: items.userId,
@@ -78,8 +77,7 @@ export async function GET(request: Request) {
       })
       .from(items)
       .where(eq(items.userId, member.id))
-      .orderBy(asc(items.id))
-      .all();
+      .orderBy(asc(items.id));
 
     const memberItems: Item[] = rawItems.map((it) =>
       enrichItem(it, member, feeSettings)
@@ -263,8 +261,8 @@ export async function GET(request: Request) {
   const buffer = await workbook.xlsx.writeBuffer();
   const filename =
     user.role === "admin"
-      ? `FashionOrders_Master_Export_${new Date().toISOString().slice(0, 10)}.xlsx`
-      : `FashionOrders_${user.name.replace(/\s+/g, "_")}_${new Date().toISOString().slice(0, 10)}.xlsx`;
+      ? `FashionSupply_Master_Export_${new Date().toISOString().slice(0, 10)}.xlsx`
+      : `FashionSupply_${user.name.replace(/\s+/g, "_")}_${new Date().toISOString().slice(0, 10)}.xlsx`;
 
   return new NextResponse(buffer, {
     headers: {

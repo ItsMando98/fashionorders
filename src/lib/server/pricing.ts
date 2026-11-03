@@ -1,8 +1,9 @@
-import { db, settings } from "./db";
+import { db, ensureDb, settings } from "./db";
 import { Item, User, HaulSummary, FeeSettings } from "@/lib/types";
 
-export function getFeeSettings(): FeeSettings {
-  const rows = db.select().from(settings).all();
+export async function getFeeSettings(): Promise<FeeSettings> {
+  await ensureDb();
+  const rows = await db.select().from(settings);
   const dict: Record<string, number> = {};
   for (const r of rows) {
     dict[r.key] = parseFloat(r.value) || 0;

@@ -2,16 +2,17 @@
 
 import React from "react";
 import {
+  KeyRound,
   Link2,
   ShoppingCart,
   PackageCheck,
   Users,
+  Images,
   LayoutDashboard,
   ClipboardList,
   Sliders,
   Share2,
   LogOut,
-  ShoppingBag,
   Shield,
 } from "lucide-react";
 import {
@@ -28,6 +29,7 @@ import { User } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 export type NavSection =
+  | "gram"
   | "scraper"
   | "my-cart"
   | "my-orders"
@@ -45,6 +47,7 @@ interface AppSidebarProps {
   sharedCount: number;
   adminTotalCount: number;
   onOpenShareModal: () => void;
+  onChangePassword: () => void;
   onLogout: () => void;
 }
 
@@ -57,23 +60,24 @@ export function AppSidebar({
   sharedCount,
   adminTotalCount,
   onOpenShareModal,
+  onChangePassword,
   onLogout,
 }: AppSidebarProps) {
   const isAdmin = user.role === "admin";
 
   return (
-    <Sidebar className="border-r border-[#153828] bg-[#0D2218] text-[#D5E3DB]">
+    <Sidebar className="border-r border-white/10 bg-[#07080c] text-zinc-300">
       {/* 1. Header with Logo & Workspace Title matching Image 1 */}
-      <SidebarHeader className="border-b border-[#183827]/70 px-4 py-4">
+      <SidebarHeader className="border-b border-white/10 px-4 py-4">
         <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#081710] border border-[#234A36] text-[#A3C4B3] shadow-xs">
-            <ShoppingBag className="h-4.5 w-4.5" />
-          </div>
+          <span className="inline-flex h-9 w-9 shrink-0 overflow-hidden rounded-md bg-black">
+            <img src="/brand/mark.png" alt="" className="h-full w-full scale-150 object-cover" />
+          </span>
           <div className="flex flex-col">
-            <span className="text-sm font-bold leading-tight tracking-tight text-white">
-              FashionOrders
+            <span className="font-display text-lg font-bold italic leading-none tracking-wide text-white">
+              FASHION SUPPLY
             </span>
-            <span className="font-mono text-[9px] font-bold uppercase tracking-wider text-[#6B8F7D] mt-0.5">
+            <span className="font-mono text-[9px] font-bold uppercase tracking-wider text-zinc-500 mt-0.5">
               {isAdmin ? "ADMIN & HAUL STUDIO" : `${user.name.toUpperCase()}'S WORKSPACE`}
             </span>
           </div>
@@ -83,10 +87,25 @@ export function AppSidebar({
       <SidebarContent className="px-3 py-4 space-y-4">
         {/* 2. My Personal Haul Section */}
         <SidebarGroup>
-          <SidebarGroupLabel className="px-2 pb-1.5 text-[10px] font-mono font-bold tracking-wider text-[#6B8F7D] uppercase">
+          <SidebarGroupLabel className="px-2 pb-1.5 text-[10px] font-mono font-bold tracking-wider text-zinc-500 uppercase">
             MY PERSONAL HAUL
           </SidebarGroupLabel>
           <SidebarMenu className="gap-1">
+            <SidebarMenuItem>
+              <button
+                type="button"
+                onClick={() => onSelectNav("gram")}
+                className={cn(
+                  "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs font-medium transition-colors",
+                  activeNav === "gram"
+                    ? "bg-[#FF4D00]/15 text-[#FF4D00] font-semibold"
+                    : "text-zinc-300 hover:bg-white/5 hover:text-white"
+                )}
+              >
+                <Images className="h-4 w-4 shrink-0" />
+                <span className="flex-1">FashionGram</span>
+              </button>
+            </SidebarMenuItem>
             <SidebarMenuItem>
               <button
                 type="button"
@@ -94,8 +113,8 @@ export function AppSidebar({
                 className={cn(
                   "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs font-medium transition-colors",
                   activeNav === "scraper"
-                    ? "bg-[#1A3B2B] text-[#F3C343] font-semibold"
-                    : "text-[#D5E3DB] hover:bg-[#153426] hover:text-white"
+                    ? "bg-[#FF4D00]/15 text-[#FF4D00] font-semibold"
+                    : "text-zinc-300 hover:bg-white/5 hover:text-white"
                 )}
               >
                 <Link2 className="h-4 w-4 shrink-0" />
@@ -110,13 +129,13 @@ export function AppSidebar({
                 className={cn(
                   "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs font-medium transition-colors",
                   activeNav === "my-cart"
-                    ? "bg-[#1A3B2B] text-[#F3C343] font-semibold"
-                    : "text-[#D5E3DB] hover:bg-[#153426] hover:text-white"
+                    ? "bg-[#FF4D00]/15 text-[#FF4D00] font-semibold"
+                    : "text-zinc-300 hover:bg-white/5 hover:text-white"
                 )}
               >
                 <ShoppingCart className="h-4 w-4 shrink-0" />
                 <span className="flex-1">My Cart</span>
-                <span className="ml-auto rounded-full border border-[#234A36] px-2 py-0.5 font-mono text-[11px] font-semibold text-[#86AB97]">
+                <span className="ml-auto rounded-full border border-white/15 px-2 py-0.5 font-mono text-[11px] font-semibold text-[#7ee7ff]">
                   {cartCount}
                 </span>
               </button>
@@ -129,13 +148,13 @@ export function AppSidebar({
                 className={cn(
                   "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs font-medium transition-colors",
                   activeNav === "my-orders"
-                    ? "bg-[#1A3B2B] text-[#F3C343] font-semibold"
-                    : "text-[#D5E3DB] hover:bg-[#153426] hover:text-white"
+                    ? "bg-[#FF4D00]/15 text-[#FF4D00] font-semibold"
+                    : "text-zinc-300 hover:bg-white/5 hover:text-white"
                 )}
               >
                 <PackageCheck className="h-4 w-4 shrink-0" />
                 <span className="flex-1">My Orders</span>
-                <span className="ml-auto rounded-full border border-[#234A36] px-2 py-0.5 font-mono text-[11px] font-semibold text-[#86AB97]">
+                <span className="ml-auto rounded-full border border-white/15 px-2 py-0.5 font-mono text-[11px] font-semibold text-[#7ee7ff]">
                   {ordersCount}
                 </span>
               </button>
@@ -148,13 +167,13 @@ export function AppSidebar({
                 className={cn(
                   "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs font-medium transition-colors",
                   activeNav === "shared-orders"
-                    ? "bg-[#1A3B2B] text-[#F3C343] font-semibold"
-                    : "text-[#D5E3DB] hover:bg-[#153426] hover:text-white"
+                    ? "bg-[#FF4D00]/15 text-[#FF4D00] font-semibold"
+                    : "text-zinc-300 hover:bg-white/5 hover:text-white"
                 )}
               >
                 <Users className="h-4 w-4 shrink-0" />
-                <span className="flex-1">Shared by Friends</span>
-                <span className="ml-auto rounded-full border border-[#234A36] px-2 py-0.5 font-mono text-[11px] font-semibold text-[#86AB97]">
+                <span className="flex-1">Shared by users</span>
+                <span className="ml-auto rounded-full border border-white/15 px-2 py-0.5 font-mono text-[11px] font-semibold text-[#7ee7ff]">
                   {sharedCount}
                 </span>
               </button>
@@ -165,9 +184,9 @@ export function AppSidebar({
         {/* 3. Mathis Admin Backend Section */}
         {isAdmin && (
           <SidebarGroup className="pt-2">
-            <SidebarGroupLabel className="px-2 pb-1.5 text-[10px] font-mono font-bold tracking-wider text-[#6B8F7D] uppercase flex items-center gap-1.5">
-              <Shield className="h-3 w-3 text-[#6B8F7D]" />
-              <span>MATHIS ADMIN BACKEND</span>
+            <SidebarGroupLabel className="px-2 pb-1.5 text-[10px] font-mono font-bold tracking-wider text-zinc-500 uppercase flex items-center gap-1.5">
+              <Shield className="h-3 w-3 text-zinc-500" />
+              <span>ADMIN BACKEND</span>
             </SidebarGroupLabel>
             <SidebarMenu className="gap-1">
               <SidebarMenuItem>
@@ -177,8 +196,8 @@ export function AppSidebar({
                   className={cn(
                     "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs font-medium transition-colors",
                     activeNav === "admin-overview"
-                      ? "bg-[#1A3B2B] text-[#F3C343] font-semibold"
-                      : "text-[#D5E3DB] hover:bg-[#153426] hover:text-white"
+                      ? "bg-[#FF4D00]/15 text-[#FF4D00] font-semibold"
+                      : "text-zinc-300 hover:bg-white/5 hover:text-white"
                   )}
                 >
                   <LayoutDashboard className="h-4 w-4 shrink-0" />
@@ -193,13 +212,13 @@ export function AppSidebar({
                   className={cn(
                     "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs font-medium transition-colors",
                     activeNav === "admin-orders"
-                      ? "bg-[#1A3B2B] text-[#F3C343] font-semibold"
-                      : "text-[#D5E3DB] hover:bg-[#153426] hover:text-white"
+                      ? "bg-[#FF4D00]/15 text-[#FF4D00] font-semibold"
+                      : "text-zinc-300 hover:bg-white/5 hover:text-white"
                   )}
                 >
                   <ClipboardList className="h-4 w-4 shrink-0" />
-                  <span className="flex-1">All Friends&apos; Orders</span>
-                  <span className="ml-auto rounded-full border border-[#234A36] px-2 py-0.5 font-mono text-[11px] font-semibold text-[#86AB97]">
+                  <span className="flex-1">All users&apos; orders</span>
+                  <span className="ml-auto rounded-full border border-white/15 px-2 py-0.5 font-mono text-[11px] font-semibold text-[#7ee7ff]">
                     {adminTotalCount}
                   </span>
                 </button>
@@ -212,8 +231,8 @@ export function AppSidebar({
                   className={cn(
                     "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs font-medium transition-colors",
                     activeNav === "admin-settings"
-                      ? "bg-[#1A3B2B] text-[#F3C343] font-semibold"
-                      : "text-[#D5E3DB] hover:bg-[#153426] hover:text-white"
+                      ? "bg-[#FF4D00]/15 text-[#FF4D00] font-semibold"
+                      : "text-zinc-300 hover:bg-white/5 hover:text-white"
                   )}
                 >
                   <Sliders className="h-4 w-4 shrink-0" />
@@ -226,36 +245,46 @@ export function AppSidebar({
       </SidebarContent>
 
       {/* 4. Footer with Share Button & User Profile Container matching Image 1 */}
-      <SidebarFooter className="border-t border-[#183827]/70 p-3 space-y-2.5">
+      <SidebarFooter className="border-t border-white/10 p-3 space-y-2.5">
         <button
           type="button"
           onClick={onOpenShareModal}
-          className="flex w-full items-center justify-center gap-2 rounded-full border border-[#234A36] bg-transparent py-2 px-3 text-xs font-semibold text-[#D5E3DB] transition hover:bg-[#153426] hover:text-white"
+          className="flex w-full items-center justify-center gap-2 rounded-md border border-white/15 bg-transparent py-2 px-3 text-xs font-semibold text-zinc-300 transition hover:bg-white/5 hover:text-white"
         >
-          <Share2 className="h-3.5 w-3.5 text-[#86AB97]" />
+          <Share2 className="h-3.5 w-3.5 text-[#7ee7ff]" />
           <span>Share My Order with Users</span>
         </button>
 
-        <div className="flex items-center justify-between rounded-xl border border-[#193B2B] bg-[#081710] p-2.5">
+        <div className="flex items-center justify-between rounded-md border border-white/10 bg-black p-2.5">
           <div className="flex items-center gap-2.5 min-w-0">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#122B1E] border border-[#234A36] font-mono text-xs font-bold text-white">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[#FF4D00]/50 bg-[#FF4D00]/15 font-mono text-xs font-bold text-white">
               {user.avatar_initials}
             </div>
             <div className="min-w-0">
               <div className="truncate text-xs font-bold text-white">{user.name}</div>
-              <div className="truncate text-[10px] font-medium text-[#6B8F7D]">
+              <div className="truncate text-[10px] font-medium text-zinc-500">
                 {isAdmin ? "Admin Console" : "Member Account"}
               </div>
             </div>
           </div>
-          <button
-            type="button"
-            className="flex h-7 w-7 items-center justify-center rounded-lg text-[#6B8F7D] transition hover:bg-[#153426] hover:text-white"
-            onClick={onLogout}
-            title="Log Out"
-          >
-            <LogOut className="h-3.5 w-3.5" />
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              className="flex h-7 w-7 items-center justify-center rounded-lg text-zinc-500 transition hover:bg-white/5 hover:text-white"
+              onClick={onChangePassword}
+              title="Change password"
+            >
+              <KeyRound className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              className="flex h-7 w-7 items-center justify-center rounded-lg text-zinc-500 transition hover:bg-white/5 hover:text-white"
+              onClick={onLogout}
+              title="Log Out"
+            >
+              <LogOut className="h-3.5 w-3.5" />
+            </button>
+          </div>
         </div>
       </SidebarFooter>
     </Sidebar>

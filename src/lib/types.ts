@@ -7,6 +7,8 @@ export interface User {
   custom_item_fixed_eur?: number | null;
   custom_item_percent?: number | null;
   custom_haul_percent?: number | null;
+  disabled?: number;
+  must_setup?: number;
 }
 
 export interface FriendDirectoryEntry {

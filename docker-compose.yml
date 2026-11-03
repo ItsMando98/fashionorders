@@ -1,0 +1,40 @@
+services:
+  app:
+    build: .
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD}@supabase-db:5432/postgres
+      FASHION_ORDERS_CACHE: /data/cache
+      RESEND_API_KEY: ${RESEND_API_KEY}
+      RESEND_FROM: ${RESEND_FROM:-Fashion Supply <onboarding@fashion-supply.store>}
+    volumes:
+      - ./data:/data
+    expose:
+      - "3000"
+    networks:
+      - default
+      - supabase
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - app
+
+networks:
+  supabase:
+    external: true
+    name: supabase_default
+
+volumes:
+  caddy_data:
+  caddy_config:

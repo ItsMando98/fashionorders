@@ -4,21 +4,20 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-full text-xs font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-3.5 [&_svg]:shrink-0 active:scale-[0.98]",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-xs font-semibold tracking-wide transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-3.5 [&_svg]:shrink-0 active:scale-[0.98]",
   {
     variants: {
       variant: {
-        default: "bg-[#0D2218] text-white shadow-xs hover:bg-[#153426]",
+        default: "bg-[#FF4D00] text-white shadow-[0_0_22px_rgba(255,77,0,0.28)] hover:bg-[#ff6a2a]",
         destructive: "bg-destructive text-destructive-foreground shadow-xs hover:bg-destructive/90",
-        outline: "border border-zinc-200 bg-white text-zinc-800 shadow-2xs hover:bg-zinc-50 hover:text-zinc-950 font-medium",
-        secondary: "bg-zinc-100 text-zinc-800 hover:bg-zinc-200 font-medium",
-        ghost: "hover:bg-zinc-100 hover:text-zinc-900",
+        outline: "border border-white/15 bg-transparent text-zinc-100 hover:bg-white/5 font-medium",
+        secondary: "bg-white/10 text-zinc-100 hover:bg-white/15 font-medium",
+        ghost: "hover:bg-white/10 hover:text-white",
         link: "text-primary underline-offset-4 hover:underline",
-        // Luxury tokens matching UI kit images
-        mandarine: "bg-[#FF5B00] text-white shadow-xs hover:bg-[#E55200] focus-visible:ring-[#FF5B00] font-bold",
-        "mandarine-outline": "border border-[#FF5B00] bg-white text-[#FF5B00] hover:bg-orange-50 font-semibold",
-        forest: "bg-[#0D2218] text-white shadow-xs hover:bg-[#153426] focus-visible:ring-[#153426] font-semibold",
-        crest: "bg-[#F3C343] text-zinc-950 shadow-2xs hover:bg-[#E2B232] font-bold focus-visible:ring-[#F3C343]",
+        mandarine: "bg-[#FF4D00] text-white shadow-[0_0_22px_rgba(255,77,0,0.35)] hover:bg-[#ff6a2a] focus-visible:ring-[#FF4D00] font-bold",
+        "mandarine-outline": "border border-[#FF4D00] bg-transparent text-[#FF4D00] hover:bg-[#FF4D00]/10 font-semibold",
+        forest: "bg-[#12141c] text-white border border-white/10 hover:bg-[#1c1e28] font-semibold",
+        crest: "bg-[#3ECFFF] text-[#071016] hover:bg-[#67dbff] font-bold focus-visible:ring-[#3ECFFF]",
       },
       size: {
         default: "h-9 px-4 py-2",

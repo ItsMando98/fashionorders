@@ -1,0 +1,7 @@
+fashion-supply.store {
+	reverse_proxy app:3000
+}
+
+www.fashion-supply.store {
+	redir https://fashion-supply.store{uri} permanent
+}

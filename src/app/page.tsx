@@ -24,6 +24,8 @@ import {
 import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar, NavSection } from "@/components/app-sidebar";
 import { AuthCard } from "@/components/auth-card";
+import { FashionGramStudio } from "@/components/fashiongram-studio";
+import { PasswordDialog } from "@/components/password-dialog";
 import { ShareOrderDialog } from "@/components/share-order-dialog";
 import { MemberFeeDialog } from "@/components/member-fee-dialog";
 import { ItemFeeDialog } from "@/components/item-fee-dialog";
@@ -85,8 +87,8 @@ function getStatusBadgeVariant(
 }
 
 export default function DashboardPage() {
-  const [token, setToken] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
+  const [passwordOpen, setPasswordOpen] = useState(false);
   const [loadingWorkspace, setLoadingWorkspace] = useState(true);
 
   // Workspace Data
@@ -108,6 +110,11 @@ export default function DashboardPage() {
 
   // Navigation & UI state
   const [activeNav, setActiveNav] = useState<NavSection>("scraper");
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("view") === "gram") {
+      setActiveNav("gram");
+    }
+  }, []);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [zoomImage, setZoomImage] = useState<{ src: string; title: string } | null>(null);
@@ -154,15 +161,14 @@ export default function DashboardPage() {
     }, 3200);
   }
 
-  const fetchWorkspace = useCallback(async (authToken: string) => {
+  const fetchWorkspace = useCallback(async () => {
     setLoadingWorkspace(true);
     try {
       const res = await fetch("/api/workspace", {
-        headers: { Authorization: `Bearer ${authToken}` },
+        credentials: "include",
       });
       if (!res.ok) {
         localStorage.removeItem("fo_token");
-        setToken(null);
         setUser(null);
         return;
       }
@@ -192,32 +198,22 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => {
-    const saved = localStorage.getItem("fo_token");
-    if (saved) {
-      setToken(saved);
-      fetchWorkspace(saved);
-    } else {
-      setLoadingWorkspace(false);
-    }
+    localStorage.removeItem("fo_token");
+    fetchWorkspace();
   }, [fetchWorkspace]);
 
-  function handleAuthenticated(newToken: string, loggedUser: User) {
-    localStorage.setItem("fo_token", newToken);
-    setToken(newToken);
+  function handleAuthenticated(loggedUser: User) {
     setUser(loggedUser);
     setActiveNav(loggedUser.role === "admin" ? "admin-overview" : "my-orders");
-    fetchWorkspace(newToken);
+    fetchWorkspace();
   }
 
   async function handleLogout() {
-    if (token) {
-      await fetch("/api/auth/logout", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-    }
+    await fetch("/api/auth/logout", {
+      method: "POST",
+      credentials: "include",
+    });
     localStorage.removeItem("fo_token");
-    setToken(null);
     setUser(null);
   }
 
@@ -249,14 +245,13 @@ export default function DashboardPage() {
   // Single Link Scrape
   async function handleScrapeSingle(e: React.FormEvent) {
     e.preventDefault();
-    if (!scrapeUrl.trim() || !token) return;
+    if (!scrapeUrl.trim() || !user) return;
     setScrapingSingle(true);
     try {
       const res = await fetch("/api/scrape", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ url: scrapeUrl }),
       });
@@ -284,7 +279,7 @@ export default function DashboardPage() {
   }
 
   async function handleSaveDraft(stage: "cart" | "submitted") {
-    if (!scrapedDraft || !token) return;
+    if (!scrapedDraft || !user) return;
     const cnyVal = draftPriceCny.trim() !== "" ? parseFloat(draftPriceCny) : null;
     const eurVal = draftPriceEur.trim() !== "" ? parseFloat(draftPriceEur) : null;
 
@@ -292,7 +287,6 @@ export default function DashboardPage() {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({
         url: scrapedDraft.url,
@@ -310,7 +304,7 @@ export default function DashboardPage() {
         price_eur_override: eurVal,
         stage,
         order_status: stage === "cart" ? "In Cart" : scrapedDraft.order_status || "Pending",
-        is_shared: 1,
+        is_shared: 0,
         description: scrapedDraft.description,
         user_notes: draftNotes.trim(),
         local_image: scrapedDraft.local_image,
@@ -319,7 +313,7 @@ export default function DashboardPage() {
     if (res.ok) {
       setScrapedDraft(null);
       setScrapeUrl("");
-      await fetchWorkspace(token);
+      await fetchWorkspace();
       setActiveNav(stage === "cart" ? "my-cart" : "my-orders");
       notify(stage === "cart" ? "Added item to My Cart" : "Submitted item to My Orders");
     }
@@ -328,7 +322,7 @@ export default function DashboardPage() {
   // Bulk Scrape
   async function handleScrapeBulk(e: React.FormEvent) {
     e.preventDefault();
-    if (!token) return;
+    if (!user) return;
     const urls = bulkUrlsText
       .split(/\r?\n/)
       .map((u) => u.trim())
@@ -343,14 +337,13 @@ export default function DashboardPage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ urls, stage: bulkStage }),
       });
       if (res.ok) {
         const data = await res.json();
         setBulkUrlsText("");
-        await fetchWorkspace(token);
+        await fetchWorkspace();
         setActiveNav(bulkStage === "cart" ? "my-cart" : "my-orders");
         notify(`Scraped and imported ${data.added} items`);
       }
@@ -360,66 +353,65 @@ export default function DashboardPage() {
   }
 
   async function handlePatchItem(itemId: number, updates: Record<string, unknown>) {
-    if (!token) return;
+    if (!user) return;
     const res = await fetch(`/api/items/${itemId}`, {
       method: "PATCH",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify(updates),
     });
     if (res.ok) {
-      await fetchWorkspace(token);
+      await fetchWorkspace();
       notify("Saved changes");
     }
   }
 
   async function handleDeleteItem(itemId: number) {
-    if (!token) return;
+    if (!user) return;
     const res = await fetch(`/api/items/${itemId}`, {
       method: "DELETE",
-      headers: { Authorization: `Bearer ${token}` },
+      credentials: "include",
     });
     if (res.ok) {
-      await fetchWorkspace(token);
+      await fetchWorkspace();
       setSelectedAdminIds((prev) => prev.filter((id) => id !== itemId));
       notify("Item deleted");
     }
   }
 
   async function handleSubmitMyCart() {
-    if (!token) return;
+    if (!user) return;
     const res = await fetch("/api/orders/submit", {
       method: "POST",
-      headers: { Authorization: `Bearer ${token}` },
+      credentials: "include",
     });
     if (res.ok) {
-      await fetchWorkspace(token);
+      await fetchWorkspace();
       setActiveNav("my-orders");
-      notify("Submitted your cart to Mathis's order queue");
+      notify("Submitted your cart to the order queue");
     }
   }
 
   async function handleCloneSharedItem(itemId: number) {
-    if (!token) return;
+    if (!user) return;
     const res = await fetch(`/api/shares/clone/${itemId}`, {
       method: "POST",
-      headers: { Authorization: `Bearer ${token}` },
+      credentials: "include",
     });
     if (res.ok) {
-      await fetchWorkspace(token);
+      await fetchWorkspace();
       notify("Copied friend's item into your Shopping Cart");
     }
   }
 
   async function handleSaveSharePreferences(shareAll: boolean, targetIds: number[]) {
-    if (!token) return;
-    const res = await fetch("/api/shares/preferences", {
-      method: "PUT",
+    if (!user) return;
+    const res = await fetch("/api/share-settings", {
+      method: "POST",
+      credentials: "include",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({
         share_all_friends: shareAll ? 1 : 0,
@@ -427,13 +419,13 @@ export default function DashboardPage() {
       }),
     });
     if (res.ok) {
-      await fetchWorkspace(token);
+      await fetchWorkspace();
       notify("Updated order sharing settings");
     }
   }
 
   async function handleAdminBulkStatus(status: string) {
-    if (!token || selectedAdminIds.length === 0) {
+    if (!user || selectedAdminIds.length === 0) {
       notify("Select at least one row first");
       return;
     }
@@ -441,25 +433,23 @@ export default function DashboardPage() {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({ item_ids: selectedAdminIds, order_status: status }),
     });
     if (res.ok) {
       setSelectedAdminIds([]);
-      await fetchWorkspace(token);
+      await fetchWorkspace();
       notify(`Updated ${selectedAdminIds.length} items to "${status}"`);
     }
   }
 
   async function handleSaveGlobalFeeSettings(e: React.FormEvent) {
     e.preventDefault();
-    if (!token) return;
+    if (!user) return;
     const res = await fetch("/api/admin/settings", {
       method: "PATCH",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({
         cny_to_eur: parseFloat(rateInput) || 0.13,
@@ -469,7 +459,7 @@ export default function DashboardPage() {
       }),
     });
     if (res.ok) {
-      await fetchWorkspace(token);
+      await fetchWorkspace();
       notify("Saved global standard fee settings for all members");
     }
   }
@@ -485,17 +475,16 @@ export default function DashboardPage() {
       reset_haul_percent?: boolean;
     }
   ) {
-    if (!token) return;
+    if (!user) return;
     const res = await fetch(`/api/admin/users/${userId}/fees`, {
       method: "PATCH",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify(payload),
     });
     if (res.ok) {
-      await fetchWorkspace(token);
+      await fetchWorkspace();
       notify("Saved individual member fee overrides");
     }
   }
@@ -507,35 +496,49 @@ export default function DashboardPage() {
       custom_fee_percent: number | null;
     }
   ) {
-    if (!token) return;
+    if (!user) return;
     const res = await fetch(`/api/items/${itemId}`, {
       method: "PATCH",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify(payload),
     });
     if (res.ok) {
-      await fetchWorkspace(token);
+      await fetchWorkspace();
       notify("Saved custom fee override for this item");
     }
   }
 
+  async function handleToggleDisabled(target: User) {
+    if (!user || target.id === user.id) return;
+    const nextDisabled = target.disabled ? 0 : 1;
+    const res = await fetch(`/api/admin/users/${target.id}/status`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ disabled: nextDisabled }),
+    });
+    if (res.ok) {
+      await fetchWorkspace();
+      notify(nextDisabled ? "Account disabled" : "Account enabled");
+    }
+  }
+
   function handleExportExcel() {
-    if (!token) return;
-    window.open(`/api/export/excel?token=${encodeURIComponent(token)}`, "_blank");
+    if (!user) return;
+    window.open("/api/export/excel", "_blank");
   }
 
   if (loadingWorkspace && !user) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-zinc-50 text-sm text-zinc-500">
+      <div className="flex min-h-screen items-center justify-center bg-[#07080c] text-sm text-zinc-400">
         Loading workspace...
       </div>
     );
   }
 
-  if (!token || !user) {
+  if (!user) {
     return <AuthCard onAuthenticated={handleAuthenticated} />;
   }
 
@@ -581,13 +584,14 @@ export default function DashboardPage() {
   const totalGrandHaulEur = adminHaulSummaries.reduce((sum, h) => sum + h.final_total_eur, 0);
 
   const navLabels: Record<NavSection, string> = {
+    gram: "FashionGram",
     scraper: "Link Scraper & EUR Calculator",
     "my-cart": "My Shopping Cart",
     "my-orders": "My Submitted Orders",
-    "shared-orders": "Shared Orders from Friends",
-    "admin-overview": "Mathis Admin Backend — Overview",
-    "admin-orders": "Mathis Admin Backend — All Friends' Orders",
-    "admin-settings": "Mathis Admin Backend — Fees, Rates & Export",
+    "shared-orders": "Shared orders from users",
+    "admin-overview": "Admin Backend — Overview",
+    "admin-orders": "Admin Backend — All Orders",
+    "admin-settings": "Admin Backend — Fees, Rates & Export",
   };
 
   return (
@@ -601,24 +605,29 @@ export default function DashboardPage() {
         sharedCount={sharedItems.length}
         adminTotalCount={adminAllItems.length}
         onOpenShareModal={() => setShareDialogOpen(true)}
+        onChangePassword={() => setPasswordOpen(true)}
         onLogout={handleLogout}
       />
 
-      <SidebarInset>
+      <SidebarInset className="fs-night">
         {/* Top Header */}
-        <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center justify-between border-b border-zinc-200/80 bg-white px-6">
+        <header className={activeNav === "gram"
+          ? "sticky top-0 z-20 flex h-12 shrink-0 items-center border-b border-white/10 bg-[#07080c] px-3"
+          : "sticky top-0 z-20 flex h-14 shrink-0 items-center justify-between border-b border-zinc-200/80 bg-white px-6"}>
           <div className="flex items-center gap-3">
-            <SidebarTrigger className="text-zinc-700 hover:text-zinc-950" />
+            <SidebarTrigger className={activeNav === "gram" ? "text-white" : "text-zinc-700 hover:text-zinc-950"} />
+            {activeNav !== "gram" && (
             <div className="flex items-center gap-1.5 text-xs">
               <span className="font-normal text-zinc-500">
-                {activeNav.startsWith("admin-") ? "Mathis Admin Console" : `${user.name}'s Workspace`}
+                {activeNav.startsWith("admin-") ? "Admin Console" : `${user.name}'s Workspace`}
               </span>
               <span className="text-zinc-400">/</span>
               <span className="font-semibold text-zinc-900">{navLabels[activeNav]}</span>
             </div>
+            )}
           </div>
 
-          <div className="flex items-center gap-3">
+          {activeNav !== "gram" && <div className="flex items-center gap-3">
             {/* Exchange Rate Pill matching Image 1 */}
             <div className="hidden md:flex items-center gap-1.5 rounded-full border border-zinc-200 bg-white px-3.5 py-1.5 font-mono text-[11px] text-zinc-700 shadow-2xs">
               <span>€ 1 ¥ = €{cnyToEur} (1 € ≈ ¥{(1 / cnyToEur).toFixed(2)})</span>
@@ -659,11 +668,12 @@ export default function DashboardPage() {
               <Download className="h-3.5 w-3.5 text-zinc-700" />
               <span>{user.role === "admin" ? "Export Master .XLSX" : "Export My .XLSX"}</span>
             </button>
-          </div>
+          </div>}
         </header>
 
         {/* Main Content */}
-        <div className="flex-1 space-y-6 p-6 max-w-7xl w-full mx-auto">
+        <div className={activeNav === "gram" ? "flex-1 w-full" : "flex-1 space-y-6 p-6 max-w-7xl w-full mx-auto"}>
+          {activeNav === "gram" && <FashionGramStudio />}
           {/* ================================================================
               1. LINK SCRAPER & EUR CALCULATOR
              ================================================================ */}
@@ -715,7 +725,7 @@ export default function DashboardPage() {
                   <div className="text-3xl font-extrabold font-mono text-zinc-950 mt-2 mb-1">
                     {mySubmittedItems.length}
                   </div>
-                  <div className="text-xs text-zinc-400">Tracked in Mathis&apos;s queue</div>
+                  <div className="text-xs text-zinc-400">Tracked in the order queue</div>
                 </div>
 
                 <div
@@ -919,7 +929,7 @@ export default function DashboardPage() {
                                 </div>
                                 <div className="sm:col-span-3 space-y-1">
                                   <label className="text-xs font-medium text-zinc-600">
-                                    Notes for Mathis
+                                    Notes for the admin
                                   </label>
                                   <Input
                                     placeholder="Box preference, sizing notes..."
@@ -930,7 +940,7 @@ export default function DashboardPage() {
                               </div>
 
                               <div className="flex justify-end gap-2 pt-2">
-                                <Button variant="outline" className="border-forest-200 hover:bg-forest-50 text-forest-900" onClick={() => handleSaveDraft("cart")}>
+                                <Button variant="outline" onClick={() => handleSaveDraft("cart")}>
                                   Add to My Cart
                                 </Button>
                                 <Button variant="mandarine" onClick={() => handleSaveDraft("submitted")}>
@@ -987,13 +997,13 @@ export default function DashboardPage() {
             <div className="space-y-6">
               <div className="flex flex-wrap items-center justify-between gap-4">
                 <div>
-                  <h1 className="text-2xl font-bold tracking-tight text-forest-950">My Shopping Cart</h1>
-                  <p className="text-sm text-forest-700/80">
-                    Configure sizes and check prices before submitting your haul to Mathis.
+                  <h1 className="text-2xl font-bold tracking-tight text-white">My Shopping Cart</h1>
+                  <p className="text-sm text-zinc-400">
+                    Configure sizes and check prices before submitting your haul.
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Button variant="outline" className="border-forest-200 hover:bg-forest-50 text-forest-900" onClick={() => setActiveNav("scraper")}>
+                  <Button variant="outline" onClick={() => setActiveNav("scraper")}>
                     + Paste Link
                   </Button>
                   {myCartItems.length > 0 && (
@@ -1376,7 +1386,7 @@ export default function DashboardPage() {
             <div className="space-y-6">
               <div className="flex flex-wrap items-center justify-between gap-4">
                 <div>
-                  <h1 className="text-2xl font-bold tracking-tight">Shared Orders from Friends</h1>
+                  <h1 className="text-2xl font-bold tracking-tight">Shared orders from users</h1>
                   <p className="text-sm text-muted-foreground">
                     Explore items your friends have shared with you. Click &ldquo;Copy to My Cart&rdquo; to add any item to your own haul.
                   </p>
@@ -1417,7 +1427,7 @@ export default function DashboardPage() {
                     No shared orders found for this filter
                   </p>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Friends can share their orders with you via the &ldquo;Share My Order with Users&rdquo; button in the sidebar.
+                    Users can share their orders with you via the &ldquo;Share My Order with Users&rdquo; button in the sidebar.
                   </p>
                 </Card>
               ) : (
@@ -1513,7 +1523,7 @@ export default function DashboardPage() {
                 <div>
                   <Badge className="mb-1.5">Separated Admin Console</Badge>
                   <h1 className="text-2xl font-bold tracking-tight">
-                    Mathis Master Backend &mdash; Overview
+                    Admin Backend &mdash; Overview
                   </h1>
                   <p className="text-sm text-muted-foreground">
                     Financial profit margins, seller cost vs. member charges, and haul management.
@@ -1532,61 +1542,61 @@ export default function DashboardPage() {
 
               {/* Enhanced Financial Bento Cards */}
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                <Card className="border-crest-300 bg-gradient-to-br from-crest-50/80 via-crest-100/30 to-white shadow-xs">
+                <Card className="border-[#3ECFFF]/40">
                   <CardHeader className="pb-2">
-                    <CardDescription className="font-mono text-[11px] font-bold uppercase text-crest-800 flex items-center justify-between">
+                    <CardDescription className="font-mono text-[11px] font-bold uppercase text-[#7ee7ff] flex items-center justify-between">
                       <span>Total Admin Profit / Margin</span>
-                      <TrendingUp className="h-4 w-4 text-crest-600" />
+                      <TrendingUp className="h-4 w-4 text-[#7ee7ff]" />
                     </CardDescription>
-                    <CardTitle className="text-3xl font-extrabold font-mono text-crest-950">
+                    <CardTitle className="text-3xl font-extrabold font-mono text-white">
                       +€{totalAdminProfit.toFixed(2)}
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <p className="text-xs text-crest-800/80 font-medium">
+                    <p className="text-xs text-zinc-400 font-medium">
                       Earned via item fixed fees &amp; % markups
                     </p>
                   </CardContent>
                 </Card>
 
-                <Card className="border-mandarine-200 bg-gradient-to-br from-mandarine-50/60 to-white shadow-xs">
+                <Card className="border-[#FF4D00]/40">
                   <CardHeader className="pb-2">
-                    <CardDescription className="font-mono text-[11px] font-bold uppercase text-mandarine-800">
+                    <CardDescription className="font-mono text-[11px] font-bold uppercase text-[#FF4D00]">
                       Total Collect from Members
                     </CardDescription>
-                    <CardTitle className="text-3xl font-extrabold font-mono text-mandarine-950">
+                    <CardTitle className="text-3xl font-extrabold font-mono text-white">
                       €{totalGrandHaulEur.toFixed(2)}
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <p className="text-xs text-mandarine-800/80 font-mono font-medium">
+                    <p className="text-xs text-zinc-400 font-mono font-medium">
                       Grand total across {adminAllItems.length} items
                     </p>
                   </CardContent>
                 </Card>
 
-                <Card className="border-forest-200 bg-gradient-to-br from-forest-50/50 to-white shadow-xs">
+                <Card className="border-white/10">
                   <CardHeader className="pb-2">
-                    <CardDescription className="font-mono text-[11px] font-bold uppercase text-forest-800">
+                    <CardDescription className="font-mono text-[11px] font-bold uppercase text-zinc-400">
                       Seller Base Cost (Your Cost)
                     </CardDescription>
-                    <CardTitle className="text-3xl font-extrabold font-mono text-forest-900">
+                    <CardTitle className="text-3xl font-extrabold font-mono text-white">
                       €{totalBaseCostEur.toFixed(2)}
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <p className="text-xs text-forest-700/80 font-medium">
+                    <p className="text-xs text-zinc-400 font-medium">
                       Base purchase cost to Chinese suppliers
                     </p>
                   </CardContent>
                 </Card>
 
-                <Card className="border-forest-200 bg-white shadow-xs">
+                <Card className="border-white/10">
                   <CardHeader className="pb-2">
-                    <CardDescription className="font-mono text-[11px] font-bold uppercase text-forest-800">
+                    <CardDescription className="font-mono text-[11px] font-bold uppercase text-zinc-400">
                       Active In Fulfillment
                     </CardDescription>
-                    <CardTitle className="text-3xl font-extrabold text-forest-950">
+                    <CardTitle className="text-3xl font-extrabold text-white">
                       {
                         adminAllItems.filter((i) =>
                           ["Ordered", "In Warehouse (QC)", "Shipped", "Delivered"].includes(
@@ -1597,7 +1607,7 @@ export default function DashboardPage() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <p className="text-xs text-forest-700/80 font-medium">
+                    <p className="text-xs text-zinc-400 font-medium">
                       {adminAllItems.filter((i) => ["In Cart", "Pending", "To Order"].includes(i.order_status)).length} awaiting order
                     </p>
                   </CardContent>
@@ -1609,7 +1619,7 @@ export default function DashboardPage() {
                 <CardHeader>
                   <CardTitle className="text-base">Friends &amp; Haul Margin Breakdown</CardTitle>
                   <CardDescription>
-                    Overview of seller base cost, admin fees, and member total for each friend. Click &ldquo;Customize Fees&rdquo; to adjust.
+                    Overview of seller base cost, admin fees, and member total for each user. Click &ldquo;Customize Fees&rdquo; to adjust.
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -1693,7 +1703,7 @@ export default function DashboardPage() {
               <div className="flex flex-wrap items-center justify-between gap-4">
                 <div>
                   <h1 className="text-2xl font-bold tracking-tight">
-                    All Friends&apos; Orders &mdash; Master Backend
+                    All users&apos; orders &mdash; Master Backend
                   </h1>
                   <p className="text-sm text-muted-foreground">
                     Inspect base cost, customize fixed/percentage item fees, update statuses, and add QC tracking notes.
@@ -1714,7 +1724,7 @@ export default function DashboardPage() {
                       variant={adminFriendFilter === "ALL" ? "default" : "outline"}
                       onClick={() => setAdminFriendFilter("ALL")}
                     >
-                      All Friends ({adminAllItems.length})
+                      All users ({adminAllItems.length})
                     </Button>
                     {adminUsers.map((u) => {
                       const cnt = adminAllItems.filter((i) => i.user_id === u.id).length;
@@ -1745,7 +1755,7 @@ export default function DashboardPage() {
                       ))}
                     </select>
                     <Input
-                      placeholder="Search title, brand, friend..."
+                      placeholder="Search title, brand, user..."
                       value={adminSearch}
                       onChange={(e) => setAdminSearch(e.target.value)}
                       className="h-8 w-56 text-xs"
@@ -1799,7 +1809,7 @@ export default function DashboardPage() {
                     <TableRow>
                       <TableHead className="w-9"></TableHead>
                       <TableHead className="w-[72px]">Photo</TableHead>
-                      <TableHead>Friend</TableHead>
+                      <TableHead>User</TableHead>
                       <TableHead>Product &amp; Brand</TableHead>
                       <TableHead>Size &amp; Variant</TableHead>
                       <TableHead className="text-right">Base Price (¥ / €)</TableHead>
@@ -2168,7 +2178,7 @@ export default function DashboardPage() {
                       <span>Multi-Sheet Excel Workbook (.XLSX)</span>
                     </CardTitle>
                     <CardDescription>
-                      Exports `FashionOrders_Master.xlsx` with separate tabs per friend, with all fee columns and grand total formulas.
+                      Exports `FashionSupply_Master.xlsx` with separate tabs per friend, with all fee columns and grand total formulas.
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
@@ -2182,7 +2192,7 @@ export default function DashboardPage() {
                     </div>
                     <Button onClick={handleExportExcel} className="w-full">
                       <Download className="h-4 w-4" />
-                      <span>Download Master FashionOrders.xlsx</span>
+                      <span>Download Master FashionSupply.xlsx</span>
                     </Button>
                   </CardContent>
                 </Card>
@@ -2228,7 +2238,7 @@ export default function DashboardPage() {
 
                             <TableCell>
                               <Badge variant={u.role === "admin" ? "default" : "secondary"}>
-                                {u.role}
+                                {u.disabled ? "disabled" : u.role}
                               </Badge>
                             </TableCell>
 
@@ -2273,15 +2283,27 @@ export default function DashboardPage() {
                             </TableCell>
 
                             <TableCell className="text-right">
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-7 text-xs"
-                                onClick={() => setEditingMemberUser(u)}
-                              >
-                                <Sliders className="h-3 w-3 mr-1" />
-                                <span>Customize</span>
-                              </Button>
+                              <div className="flex justify-end gap-2">
+                                {u.id !== user.id && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-7 text-xs"
+                                    onClick={() => handleToggleDisabled(u)}
+                                  >
+                                    {u.disabled ? "Enable" : "Disable"}
+                                  </Button>
+                                )}
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-7 text-xs"
+                                  onClick={() => setEditingMemberUser(u)}
+                                >
+                                  <Sliders className="h-3 w-3 mr-1" />
+                                  <span>Customize</span>
+                                </Button>
+                              </div>
                             </TableCell>
                           </TableRow>
                         );
@@ -2313,6 +2335,8 @@ export default function DashboardPage() {
       />
 
       {/* Share Order Dialog */}
+      <PasswordDialog open={passwordOpen} onOpenChange={setPasswordOpen} onSaved={() => notify("Password updated")} />
+
       <ShareOrderDialog
         open={shareDialogOpen}
         onOpenChange={setShareDialogOpen}

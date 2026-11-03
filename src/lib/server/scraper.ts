@@ -2,8 +2,16 @@ import * as cheerio from "cheerio";
 import fs from "fs";
 import path from "path";
 import crypto from "crypto";
+import dns from "dns/promises";
+import { PublicError } from "./http";
+import { isAllowedImageHost, isAllowedShopHost, isPrivateAddress, isPrivateHostname } from "./hosts";
 
-const CACHE_DIR = path.resolve(process.cwd(), ".cache_images");
+const CACHE_DIR = process.env.FASHION_ORDERS_CACHE
+  ? path.resolve(process.env.FASHION_ORDERS_CACHE)
+  : path.resolve(process.cwd(), ".cache_images");
+const FETCH_TIMEOUT_MS = 8000;
+const MAX_HTML_BYTES = 1_500_000;
+const MAX_IMAGE_BYTES = 2_000_000;
 if (!fs.existsSync(CACHE_DIR)) {
   fs.mkdirSync(CACHE_DIR, { recursive: true });
 }
@@ -86,6 +94,66 @@ export function detectBrandAndCategory(
   return { brand, category };
 }
 
+async function hostIsPublic(hostname: string): Promise<boolean> {
+  if (isPrivateHostname(hostname)) return false;
+  try {
+    const records = await dns.lookup(hostname, { all: true, verbatim: true });
+    return records.length > 0 && records.every((record) => !isPrivateAddress(record.address));
+  } catch {
+    return false;
+  }
+}
+
+async function readLimited(response: Response, maxBytes: number): Promise<Buffer | null> {
+  const advertised = Number(response.headers.get("content-length") || 0);
+  if (advertised > maxBytes) return null;
+  const reader = response.body?.getReader();
+  if (!reader) return null;
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > maxBytes) {
+      await reader.cancel();
+      return null;
+    }
+    chunks.push(value);
+  }
+  return Buffer.concat(chunks);
+}
+
+async function fetchAllowed(
+  rawUrl: string,
+  headers: Record<string, string>,
+  kind: "shop" | "image",
+  hops = 0
+): Promise<Response | null> {
+  if (hops > 2) return null;
+  let parsed: URL;
+  try {
+    parsed = new URL(rawUrl);
+  } catch {
+    return null;
+  }
+  if (parsed.protocol !== "https:") return null;
+  const allowed = kind === "shop" ? isAllowedShopHost(parsed.hostname) : isAllowedImageHost(parsed.hostname);
+  if (!allowed || !(await hostIsPublic(parsed.hostname))) return null;
+
+  const response = await fetch(parsed, {
+    headers,
+    redirect: "manual",
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+  });
+  if (response.status >= 300 && response.status < 400) {
+    const location = response.headers.get("location");
+    if (!location) return null;
+    return fetchAllowed(new URL(location, parsed).toString(), headers, kind, hops + 1);
+  }
+  return response;
+}
+
 export async function downloadAndCacheThumbnail(
   imgUrl: string,
   referer: string,
@@ -94,7 +162,8 @@ export async function downloadAndCacheThumbnail(
   if (!imgUrl || imgUrl.includes("logo1@558")) return "";
   if (imgUrl.startsWith("//")) imgUrl = "https:" + imgUrl;
 
-  const filename = `${cacheKey}.png`;
+  const filename = `${cacheKey.replace(/[^a-zA-Z0-9_-]/g, "")}.png`;
+  if (!filename.endsWith(".png")) return "";
   const filepath = path.join(CACHE_DIR, filename);
 
   if (fs.existsSync(filepath)) {
@@ -102,16 +171,15 @@ export async function downloadAndCacheThumbnail(
   }
 
   try {
-    const res = await fetch(imgUrl, {
-      headers: {
-        "User-Agent": USER_AGENT,
-        Referer: referer,
-      },
-    });
-    if (res.ok) {
-      const arrayBuffer = await res.arrayBuffer();
-      if (arrayBuffer.byteLength > 500) {
-        fs.writeFileSync(filepath, Buffer.from(arrayBuffer));
+    const res = await fetchAllowed(
+      imgUrl,
+      { "User-Agent": USER_AGENT, Referer: referer },
+      "image"
+    );
+    if (res?.ok) {
+      const file = await readLimited(res, MAX_IMAGE_BYTES);
+      if (file && file.byteLength > 500) {
+        fs.writeFileSync(filepath, file);
         return `/images/${filename}`;
       }
     }
@@ -133,6 +201,7 @@ export async function fetchWeidianSku(url: string) {
         "User-Agent": USER_AGENT,
         Referer: "https://weidian.com/",
       },
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
     if (res.ok) {
       const json = await res.json();
@@ -158,13 +227,100 @@ export async function fetchWeidianSku(url: string) {
   return null;
 }
 
+// ---------------------------------------------------------------------------
+// Scrapling sidecar (Python, FastAPI). Primary scraper when reachable;
+// the TypeScript logic below stays as the fallback.
+// ---------------------------------------------------------------------------
+
+const SIDECAR_URL = (process.env.SCRAPER_SIDECAR_URL || "http://127.0.0.1:8100").replace(/\/$/, "");
+const SIDECAR_TOKEN = process.env.SCRAPER_TOKEN || "";
+const SIDECAR_TIMEOUT_MS = 60_000; // stealth browser fallback can be slow
+
+type SidecarResult = {
+  source_platform: string;
+  title: string;
+  price_cny: number | null;
+  available_sizes: string;
+  img_url: string;
+  weidian_url: string | null;
+  used_stealth?: boolean;
+};
+
+async function scrapeViaSidecar(cleanUrl: string): Promise<SidecarResult | null> {
+  if (process.env.SCRAPER_SIDECAR_DISABLED === "1") return null;
+  try {
+    const res = await fetch(`${SIDECAR_URL}/scrape`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Scraper-Token": SIDECAR_TOKEN,
+      },
+      body: JSON.stringify({ url: cleanUrl }),
+      signal: AbortSignal.timeout(SIDECAR_TIMEOUT_MS),
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as SidecarResult;
+    if (!data || typeof data.title !== "string" || !data.title) return null;
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+async function scrapeViaSidecarPipeline(cleanUrl: string, cnyToEur: number) {
+  const sidecar = await scrapeViaSidecar(cleanUrl);
+  if (!sidecar) return null;
+
+  const title = sidecar.title.slice(0, 300);
+  const { brand, category } = detectBrandAndCategory(title, sidecar.available_sizes || "", cleanUrl);
+  const urlHash = crypto.createHash("md5").update(cleanUrl).digest("hex").slice(0, 12);
+  const platform = sidecar.source_platform === "Weidian" ? "weidian" : "yupoo";
+
+  let localImg = "";
+  if (sidecar.img_url) {
+    localImg = await downloadAndCacheThumbnail(
+      sidecar.img_url,
+      `https://${new URL(cleanUrl).host}/`,
+      `${platform}_${urlHash}`
+    );
+  }
+
+  const cny = sidecar.price_cny ?? null;
+  return {
+    url: cleanUrl,
+    weidian_url: sidecar.weidian_url || (platform === "weidian" ? cleanUrl : null),
+    source_platform: sidecar.source_platform,
+    title,
+    brand,
+    category,
+    available_sizes: sidecar.available_sizes || "Standard Sizes",
+    price_cny: cny,
+    price_eur: cny !== null ? parseFloat((cny * cnyToEur).toFixed(2)) : null,
+    local_image: localImg,
+    order_status: "Pending",
+  };
+}
+
 export async function scrapeAnyUrl(url: string, cnyToEur: number = 0.13) {
   let cleanUrl = url.trim();
   if (!cleanUrl.startsWith("http")) cleanUrl = "https://" + cleanUrl;
 
-  const parsed = new URL(cleanUrl);
+  let parsed: URL;
+  try {
+    parsed = new URL(cleanUrl);
+  } catch {
+    throw new PublicError("Only Yupoo and Weidian links are allowed.");
+  }
+  if (!isAllowedShopHost(parsed.hostname) || isPrivateHostname(parsed.hostname)) {
+    throw new PublicError("Only Yupoo and Weidian links are allowed.");
+  }
   const host = parsed.hostname.toLowerCase();
   const urlHash = crypto.createHash("md5").update(cleanUrl).digest("hex").slice(0, 12);
+
+  // Primary: Scrapling sidecar. Falls back to the built-in logic below
+  // when the service is offline or fails.
+  const sidecarResult = await scrapeViaSidecarPipeline(cleanUrl, cnyToEur);
+  if (sidecarResult) return sidecarResult;
 
   // 1. Direct Weidian URL
   if (host.includes("weidian.com")) {
@@ -201,14 +357,18 @@ export async function scrapeAnyUrl(url: string, cnyToEur: number = 0.13) {
     const albumId = albumMatch ? albumMatch[1] : urlHash;
 
     try {
-      const res = await fetch(cleanUrl, {
-        headers: {
+      const res = await fetchAllowed(
+        cleanUrl,
+        {
           "User-Agent": USER_AGENT,
-          Referer: `${parsed.protocol}//${parsed.host}/`,
+          Referer: `https://${parsed.host}/`,
         },
-      });
-
-      const html = await res.text();
+        "shop"
+      );
+      if (!res?.ok) throw new Error("Yupoo page could not be loaded");
+      const htmlBuffer = await readLimited(res, MAX_HTML_BYTES);
+      if (!htmlBuffer) throw new Error("Yupoo page was too large");
+      const html = htmlBuffer.toString("utf8");
       const $ = cheerio.load(html);
 
       const titleEl = $(".showalbumheader__gallerytitle");

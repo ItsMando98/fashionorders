@@ -8,10 +8,14 @@ node_modules/
 out/
 build/
 
-# SQLite WAL and temporary files
+# SQLite database, backups, and image cache
+*.db
 *.db-shm
 *.db-wal
 *.sqlite3-journal
+.cache_images/
+scraped_data.json
+backups/
 
 # Python cache
 __pycache__/
@@ -31,10 +35,16 @@ Thumbs.db
 *.swp
 
 # Environment variables
+.env
 .env*.local
+.supabase-db-password
 
 # Logs
 *.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# Python scraper sidecar
+scraper_service/.venv/
+scraper_service/__pycache__/

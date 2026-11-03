@@ -2,12 +2,13 @@ import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { getAuthUser } from "@/lib/server/auth";
 import { db, items } from "@/lib/server/db";
+import { errorResponse } from "@/lib/server/http";
 
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const user = getAuthUser(request);
+  const user = await getAuthUser(request);
   if (!user) {
     return NextResponse.json({ detail: "Not authenticated" }, { status: 401 });
   }
@@ -18,11 +19,12 @@ export async function PATCH(
     return NextResponse.json({ detail: "Invalid item ID" }, { status: 400 });
   }
 
-  const existing = db
-    .select()
-    .from(items)
-    .where(eq(items.id, itemId))
-    .get();
+  const existing = (
+    await db
+      .select()
+      .from(items)
+      .where(eq(items.id, itemId))
+  )[0];
 
   if (!existing) {
     return NextResponse.json({ detail: "Item not found" }, { status: 404 });
@@ -40,9 +42,9 @@ export async function PATCH(
 
     if (body.chosen_size !== undefined) updateValues.chosenSize = body.chosen_size;
     if (body.quantity !== undefined) updateValues.quantity = Math.max(1, Number(body.quantity));
-    if (body.user_notes !== undefined) updateValues.userNotes = body.user_notes;
+    if (body.user_notes !== undefined) updateValues.userNotes = String(body.user_notes).slice(0, 2000);
     if (body.is_shared !== undefined) updateValues.isShared = body.is_shared ? 1 : 0;
-    if (body.stage !== undefined) updateValues.stage = body.stage;
+    if (body.stage === "cart" || body.stage === "submitted") updateValues.stage = body.stage;
 
     if (isAdmin) {
       if (body.order_status !== undefined) updateValues.orderStatus = body.order_status;
@@ -53,18 +55,15 @@ export async function PATCH(
     }
 
     if (Object.keys(updateValues).length > 0) {
-      db.update(items)
+      await db
+        .update(items)
         .set(updateValues)
-        .where(eq(items.id, itemId))
-        .run();
+        .where(eq(items.id, itemId));
     }
 
     return NextResponse.json({ ok: true, id: itemId });
-  } catch (err: any) {
-    return NextResponse.json(
-      { detail: err.message || "Failed to update item" },
-      { status: 500 }
-    );
+  } catch (err) {
+    return errorResponse("update-item", err);
   }
 }
 
@@ -72,7 +71,7 @@ export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const user = getAuthUser(request);
+  const user = await getAuthUser(request);
   if (!user) {
     return NextResponse.json({ detail: "Not authenticated" }, { status: 401 });
   }
@@ -83,11 +82,12 @@ export async function DELETE(
     return NextResponse.json({ detail: "Invalid item ID" }, { status: 400 });
   }
 
-  const existing = db
-    .select()
-    .from(items)
-    .where(eq(items.id, itemId))
-    .get();
+  const existing = (
+    await db
+      .select()
+      .from(items)
+      .where(eq(items.id, itemId))
+  )[0];
 
   if (!existing) {
     return NextResponse.json({ detail: "Item not found" }, { status: 404 });
@@ -97,6 +97,6 @@ export async function DELETE(
     return NextResponse.json({ detail: "Permission denied" }, { status: 403 });
   }
 
-  db.delete(items).where(eq(items.id, itemId)).run();
+  await db.delete(items).where(eq(items.id, itemId));
   return NextResponse.json({ ok: true });
 }

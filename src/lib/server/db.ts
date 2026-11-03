@@ -1,25 +1,41 @@
-import Database from "better-sqlite3";
-import { drizzle } from "drizzle-orm/better-sqlite3";
-import path from "path";
+import postgres, { type Sql } from "postgres";
+import { drizzle } from "drizzle-orm/postgres-js";
 import * as schema from "./schema";
+import { ensureSchema } from "./schema-init";
 
-const DB_PATH = path.resolve(process.cwd(), "fashion_orders.db");
+// Supabase Postgres (self-hosted auf dem VPS). Lokal kann DATABASE_URL
+// auf denselben Server zeigen; Fallback ist localhost.
+const DATABASE_URL =
+  process.env.DATABASE_URL || "postgres://postgres:postgres@127.0.0.1:5432/postgres";
 
-// Singleton Better-SQLite3 connection
-let sqliteInstance: Database.Database | null = null;
+let client: Sql | null = null;
+let initPromise: Promise<void> | null = null;
 
-export function getSqlite(): Database.Database {
-  if (!sqliteInstance) {
-    sqliteInstance = new Database(DB_PATH);
-    sqliteInstance.pragma("journal_mode = WAL");
+export function getSql(): Sql {
+  if (!client) {
+    client = postgres(DATABASE_URL, {
+      max: 10,
+      prepare: true,
+    });
   }
-  return sqliteInstance;
+  return client;
 }
 
-// Export typed Drizzle ORM instance
-export const db = drizzle(getSqlite(), { schema });
+// Muss einmal vor den ersten Queries aufgerufen werden: legt Tabellen an
+// und fuehrt kleine Migrationen aus. Laeuft genau einmal pro Prozess.
+export function ensureDb(): Promise<void> {
+  if (!initPromise) {
+    initPromise = ensureSchema(getSql()).catch((err) => {
+      initPromise = null; // naechster Aufruf darf es erneut versuchen
+      throw err;
+    });
+  }
+  return initPromise;
+}
 
-// Helper to access raw or drizzle
+// Typed Drizzle ORM instance (async, postgres-js driver)
+export const db = drizzle(getSql(), { schema });
+
 export function getDb() {
   return db;
 }
