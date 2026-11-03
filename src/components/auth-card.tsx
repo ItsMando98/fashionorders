@@ -191,18 +191,19 @@ export function AuthCard({ onAuthenticated }: AuthCardProps) {
   }
 
   return (
-    <div className="grid min-h-screen bg-[#07080c] text-white lg:grid-cols-[1.15fr_0.85fr]">
-      <section className="relative min-h-[48vh] overflow-hidden lg:min-h-screen">
+    <div className="relative min-h-screen overflow-hidden bg-[#07080c] text-white">
+      <section className="absolute inset-0 overflow-hidden">
         {heroSlides.map((item, index) => (
           <img
             key={item.src}
             src={item.src}
             alt=""
-            className={`absolute inset-0 h-full w-full object-cover transition-[opacity,transform] duration-[2500ms] ease-in-out ${
-              index === slide ? "opacity-100 scale-100" : "opacity-0 scale-[1.05]"
+            className={`absolute inset-0 h-full w-full object-cover transition-[opacity,transform] duration-[4000ms] ease-[cubic-bezier(0.4,0,0.2,1)] will-change-[opacity,transform] ${
+              index === slide ? "opacity-100 scale-100" : "opacity-0 scale-[1.06]"
             }`}
           />
         ))}
+        <div className="absolute inset-0 bg-black/35" />
         <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/45 to-transparent" />
         <div className="absolute left-5 top-5 flex items-center gap-3 rounded-md bg-black/55 px-3 py-2 backdrop-blur-sm">
           <span className="inline-flex h-10 w-10 overflow-hidden rounded-md bg-black">
@@ -229,9 +230,9 @@ export function AuthCard({ onAuthenticated }: AuthCardProps) {
         </div>
       </section>
 
-      <section className="flex items-center justify-center px-4 py-10">
+      <section className="relative z-10 flex min-h-screen items-center justify-center px-4 py-10">
       {setupUser ? (
-      <Card className="w-full max-w-md border-white/10 bg-[#12141c] text-white shadow-none">
+      <Card className="w-full max-w-md border-white/15 bg-[#12141c]/80 text-white shadow-2xl backdrop-blur-xl">
         <CardHeader className="space-y-1 pb-4">
           <CardTitle className="text-xl font-bold tracking-tight text-white">Secure your account</CardTitle>
           <CardDescription className="text-white/60">
@@ -335,7 +336,7 @@ export function AuthCard({ onAuthenticated }: AuthCardProps) {
         </CardContent>
       </Card>
       ) : (
-      <Card className="w-full max-w-md border-white/10 bg-[#12141c] text-white shadow-none">
+      <Card className="w-full max-w-md border-white/15 bg-[#12141c]/80 text-white shadow-2xl backdrop-blur-xl">
         <CardHeader className="space-y-1 pb-4">
           <CardTitle className="text-xl font-bold tracking-tight text-white">Account Access</CardTitle>
           <CardDescription className="text-white/60">
