@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Barlow_Condensed, Plus_Jakarta_Sans, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -22,6 +22,13 @@ const mono = JetBrains_Mono({
 export const metadata: Metadata = {
   title: "Fashion Supply",
   description: "Shared fashion orders for your group.",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#07080c",
 };
 
 export default function RootLayout({

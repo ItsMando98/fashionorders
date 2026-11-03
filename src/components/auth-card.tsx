@@ -191,7 +191,7 @@ export function AuthCard({ onAuthenticated }: AuthCardProps) {
   }
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[#07080c] text-white">
+    <div className="relative min-h-dvh overflow-hidden bg-[#07080c] text-white">
       <section className="absolute inset-0 overflow-hidden">
         {heroSlides.map((item, index) => (
           <img
@@ -205,16 +205,16 @@ export function AuthCard({ onAuthenticated }: AuthCardProps) {
         ))}
         <div className="absolute inset-0 bg-black/35" />
         <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/45 to-transparent" />
-        <div className="absolute left-5 top-5 flex items-center gap-3 rounded-md bg-black/55 px-3 py-2 backdrop-blur-sm">
-          <span className="inline-flex h-10 w-10 overflow-hidden rounded-md bg-black">
+        <div className="absolute left-3 top-[max(0.75rem,env(safe-area-inset-top))] flex items-center gap-2.5 rounded-md bg-black/55 px-2.5 py-1.5 backdrop-blur-sm sm:left-5 sm:top-5 sm:gap-3 sm:px-3 sm:py-2">
+          <span className="inline-flex h-8 w-8 overflow-hidden rounded-md bg-black sm:h-10 sm:w-10">
             <img src="/brand/mark.png" alt="" className="h-full w-full scale-150 object-cover" />
           </span>
           <div>
-            <div className="font-display text-3xl font-bold italic leading-none tracking-wide">FASHION SUPPLY</div>
-            <p className="mt-1 text-[10px] font-semibold tracking-[0.28em] text-white/70">FAST FASHION FOR YOUR NEXT LOOK</p>
+            <div className="font-display text-xl font-bold italic leading-none tracking-wide sm:text-3xl">FASHION SUPPLY</div>
+            <p className="mt-1 text-[9px] font-semibold tracking-[0.18em] text-white/70 sm:text-[10px] sm:tracking-[0.28em]">FAST FASHION FOR YOUR NEXT LOOK</p>
           </div>
         </div>
-        <div className="absolute bottom-5 left-5 flex items-center gap-3">
+        <div className="absolute bottom-[max(0.75rem,env(safe-area-inset-bottom))] left-3 flex items-center gap-3 sm:bottom-5 sm:left-5">
           <div className="flex gap-2">
             {heroSlides.map((item, index) => (
               <button
@@ -230,7 +230,7 @@ export function AuthCard({ onAuthenticated }: AuthCardProps) {
         </div>
       </section>
 
-      <section className="relative z-10 flex min-h-screen items-center justify-center px-4 py-10">
+      <section className="relative z-10 flex min-h-dvh items-center justify-center px-4 py-6 sm:py-10">
       {setupUser ? (
       <Card className="w-full max-w-md border-white/15 bg-[#12141c]/80 text-white shadow-2xl backdrop-blur-xl">
         <CardHeader className="space-y-1 pb-4">
@@ -263,7 +263,7 @@ export function AuthCard({ onAuthenticated }: AuthCardProps) {
                 We email you a 6-digit code to verify this address is really yours.
               </p>
               {error && <ErrorBox message={error} />}
-              <Button type="submit" variant="mandarine" className="w-full" disabled={loading}>
+              <Button type="submit" variant="mandarine" className="w-full h-11" disabled={loading}>
                 <Mail className="mr-1.5 h-4 w-4" />
                 {loading ? "Sending..." : "Send verification code"}
               </Button>
@@ -382,7 +382,7 @@ export function AuthCard({ onAuthenticated }: AuthCardProps) {
                     />
                   </div>
                   {error && <ErrorBox message={error} />}
-                  <Button type="submit" variant="mandarine" className="w-full" disabled={loading}>
+                  <Button type="submit" variant="mandarine" className="w-full h-11" disabled={loading}>
                     {loading ? "Signing in..." : "Sign In to Haul"}
                     <ArrowRight className="ml-1.5 h-4 w-4" />
                   </Button>
@@ -417,7 +417,7 @@ export function AuthCard({ onAuthenticated }: AuthCardProps) {
                     />
                   </div>
                   {error && <ErrorBox message={error} />}
-                  <Button type="submit" variant="mandarine" className="w-full" disabled={loading}>
+                  <Button type="submit" variant="mandarine" className="w-full h-11" disabled={loading}>
                     <Mail className="mr-1.5 h-4 w-4" />
                     {loading ? "Sending..." : "Email me a code"}
                   </Button>
@@ -453,7 +453,7 @@ export function AuthCard({ onAuthenticated }: AuthCardProps) {
                     required
                   />
                   {error && <ErrorBox message={error} />}
-                  <Button type="submit" variant="mandarine" className="w-full" disabled={loading || loginCode.length !== 6}>
+                  <Button type="submit" variant="mandarine" className="w-full h-11" disabled={loading || loginCode.length !== 6}>
                     {loading ? "Checking..." : "Sign In to Haul"}
                     <ArrowRight className="ml-1.5 h-4 w-4" />
                   </Button>
@@ -501,7 +501,7 @@ export function AuthCard({ onAuthenticated }: AuthCardProps) {
                     />
                   </div>
                   {error && <ErrorBox message={error} />}
-                  <Button type="submit" variant="mandarine" className="w-full" disabled={loading}>
+                  <Button type="submit" variant="mandarine" className="w-full h-11" disabled={loading}>
                     <Mail className="mr-1.5 h-4 w-4" />
                     {loading ? "Sending..." : "Email me a code"}
                   </Button>
@@ -527,7 +527,7 @@ export function AuthCard({ onAuthenticated }: AuthCardProps) {
                     required
                   />
                   {error && <ErrorBox message={error} />}
-                  <Button type="submit" variant="mandarine" className="w-full" disabled={loading || signupCode.length !== 6}>
+                  <Button type="submit" variant="mandarine" className="w-full h-11" disabled={loading || signupCode.length !== 6}>
                     <UserPlus className="mr-1.5 h-4 w-4" />
                     {loading ? "Creating Account..." : "Create account"}
                   </Button>
