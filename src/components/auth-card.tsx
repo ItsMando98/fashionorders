@@ -15,9 +15,9 @@ interface AuthCardProps {
 type Step = "details" | "code";
 
 const heroSlides = [
-  { src: "/brand/slides/loud.jpg", name: "Loud Luxury" },
-  { src: "/brand/slides/stairs.jpg", name: "The Lineup" },
-  { src: "/brand/slides/duo.jpg", name: "Two Worlds" },
+  { src: "/brand/slides/loud.jpg", mobileSrc: "/brand/slides/loud_p.jpg", name: "Loud Luxury" },
+  { src: "/brand/slides/stairs.jpg", mobileSrc: "/brand/slides/stairs_p.jpg", name: "The Lineup" },
+  { src: "/brand/slides/duo.jpg", mobileSrc: "/brand/slides/duo_p.jpg", name: "Two Worlds" },
 ];
 
 export function AuthCard({ onAuthenticated }: AuthCardProps) {
@@ -194,14 +194,16 @@ export function AuthCard({ onAuthenticated }: AuthCardProps) {
     <div className="relative min-h-dvh overflow-hidden bg-[#07080c] text-white">
       <section className="absolute inset-0 overflow-hidden">
         {heroSlides.map((item, index) => (
-          <img
-            key={item.src}
-            src={item.src}
-            alt=""
-            className={`absolute inset-0 h-full w-full object-contain sm:object-cover transition-[opacity,transform] duration-[4000ms] ease-[cubic-bezier(0.4,0,0.2,1)] will-change-[opacity,transform] ${
-              index === slide ? "opacity-100 scale-100" : "opacity-0 scale-[1.06]"
-            }`}
-          />
+          <picture key={item.src}>
+            <source media="(max-width: 640px)" srcSet={item.mobileSrc} />
+            <img
+              src={item.src}
+              alt=""
+              className={`absolute inset-0 h-full w-full object-contain transition-[opacity,transform] duration-[4000ms] ease-[cubic-bezier(0.4,0,0.2,1)] will-change-[opacity,transform] ${
+                index === slide ? "opacity-100 scale-100" : "opacity-0 scale-[1.06]"
+              }`}
+            />
+          </picture>
         ))}
         <div className="absolute inset-0 bg-black/35" />
         <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/45 to-transparent" />
