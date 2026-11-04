@@ -88,11 +88,13 @@ export async function scrapeToProduct(url: string, sellerOverride?: string): Pro
     seller,
     sourceUrl,
     weidianUrl: scraped.weidian_url || "",
-    active: 1,
     updatedAt: new Date().toISOString().slice(0, 19).replace("T", " "),
   };
 
-  // Dedupe: gleiche Quell-URL -> Update statt Duplikat
+  // Dedupe: gleiche Quell-URL -> Update statt Duplikat.
+  // WICHTIG: "active" wird beim Update NICHT angefasst, damit im Admin
+  // deaktivierte/geloeschte Produkte beim naechsten Scrape nicht
+  // still wieder aktiviert werden.
   if (sourceUrl) {
     const existing = (
       await db.select().from(products).where(eq(products.sourceUrl, sourceUrl))
@@ -109,7 +111,7 @@ export async function scrapeToProduct(url: string, sellerOverride?: string): Pro
     }
   }
 
-  const inserted = (await db.insert(products).values(values).returning())[0];
+  const inserted = (await db.insert(products).values({ ...values, active: 1 }).returning())[0];
   return inserted;
 }
 

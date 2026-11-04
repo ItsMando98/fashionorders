@@ -208,8 +208,8 @@ export function AuthCard({ onAuthenticated }: AuthCardProps) {
         <div className="absolute inset-0 bg-black/35" />
         <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/45 to-transparent" />
         <div className="absolute left-3 top-[max(0.75rem,env(safe-area-inset-top))] flex items-center gap-2.5 rounded-md bg-black/55 px-2.5 py-1.5 backdrop-blur-sm sm:left-5 sm:top-5 sm:gap-3 sm:px-3 sm:py-2">
-          <span className="inline-flex h-8 w-8 overflow-hidden rounded-md bg-black sm:h-10 sm:w-10">
-            <img src="/brand/mark.png" alt="" className="h-full w-full scale-150 object-cover" />
+          <span className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-black sm:h-10 sm:w-10">
+            <img src="/brand/mark-fit.png" alt="" className="h-full w-full object-contain" />
           </span>
           <div>
             <div className="font-display text-xl font-bold italic leading-none tracking-wide sm:text-3xl">FASHION SUPPLY</div>

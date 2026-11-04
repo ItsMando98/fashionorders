@@ -656,14 +656,14 @@ export default function DashboardPage() {
         onLogout={handleLogout}
       />
 
-      <SidebarInset className="fs-night relative bg-[#07080c]/60 backdrop-blur-md">
+      <SidebarInset className="fs-night shell-panel relative backdrop-blur-md md:border md:border-white/10">
         {/* WebGL-Shader nur innerhalb des Shell-Panels (absolute, -z-10
             hinter Header/Content, rounded-xl passend zum Panel). */}
         <ShaderBackground className="pointer-events-none absolute inset-0 -z-10 h-full w-full rounded-xl" />
         {/* Top Header */}
         <header className={activeNav === "gram"
-          ? "shell-reveal-header sticky top-0 z-20 flex h-12 shrink-0 items-center rounded-t-xl border-b border-white/10 bg-[#07080c]/80 backdrop-blur px-3"
-          : "shell-reveal-header sticky top-0 z-20 flex h-14 shrink-0 items-center justify-between rounded-t-xl border-b border-zinc-200/80 bg-[#0b0c12]/70 backdrop-blur-md px-6"}>
+          ? "shell-reveal-header shell-header group-has-data-[collapsible=icon]/sidebar-wrapper:h-12 sticky top-0 z-20 flex h-12 shrink-0 items-center rounded-t-xl border-b border-white/10 backdrop-blur px-3 transition-[width,height] ease-linear"
+          : "shell-reveal-header shell-header group-has-data-[collapsible=icon]/sidebar-wrapper:h-12 sticky top-0 z-20 flex h-14 shrink-0 items-center justify-between rounded-t-xl border-b border-zinc-200/80 backdrop-blur-md px-6 transition-[width,height] ease-linear"}>
           <div className="flex items-center gap-3">
             <SidebarTrigger className={activeNav === "gram" ? "text-white" : "text-zinc-700 hover:text-zinc-950"} />
             <Separator orientation="vertical" className={activeNav === "gram" ? "h-4 bg-white/15" : "h-4"} />
@@ -1593,11 +1593,11 @@ export default function DashboardPage() {
 
               {/* Enhanced Financial Bento Cards */}
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                <Card className="border-[#3ECFFF]/40">
+                <Card className="border-[#FF7E33]/40">
                   <CardHeader className="pb-2">
-                    <CardDescription className="font-mono text-[11px] font-bold uppercase text-[#7ee7ff] flex items-center justify-between">
+                    <CardDescription className="font-mono text-[11px] font-bold uppercase text-[#FF7E33] flex items-center justify-between">
                       <span>Total Admin Profit / Margin</span>
-                      <TrendingUp className="h-4 w-4 text-[#7ee7ff]" />
+                      <TrendingUp className="h-4 w-4 text-[#FF7E33]" />
                     </CardDescription>
                     <CardTitle className="text-3xl font-extrabold font-mono text-white">
                       +€{totalAdminProfit.toFixed(2)}

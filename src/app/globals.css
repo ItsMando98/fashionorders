@@ -22,8 +22,8 @@
     --forest: 240 14% 7%;
     --forest-foreground: 0 0% 96%;
 
-    --crest: 193 100% 62%;
-    --crest-foreground: 200 40% 6%;
+    --crest: 22 100% 60%;
+    --crest-foreground: 20 60% 8%;
 
     --secondary: 230 14% 14%;
     --secondary-foreground: 0 0% 92%;
@@ -31,8 +31,8 @@
     --muted: 230 12% 14%;
     --muted-foreground: 230 8% 68%;
 
-    --accent: 193 100% 62%;
-    --accent-foreground: 200 40% 6%;
+    --accent: 18 100% 50%;
+    --accent-foreground: 0 0% 100%;
 
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 98%;
@@ -49,7 +49,31 @@
     --sidebar-accent: 230 14% 12%;
     --sidebar-accent-foreground: 18 100% 60%;
     --sidebar-border: 230 12% 16%;
-    --sidebar-ring: 193 100% 62%;
+    --sidebar-ring: 18 100% 50%;
+
+    /* Chart-Farben im Marken-Schema (fuer dashboard-01 Chart/Demo). */
+    --chart-1: 18 100% 50%;
+    --chart-2: 32 100% 55%;
+    --chart-3: 230 8% 68%;
+    --chart-4: 18 80% 65%;
+    --chart-5: 18 70% 38%;
+
+    /* Premium "Lit Concrete Wall": ein einheitlicher Hintergrund fuer
+       den gesamten Bereich hinter der Shell. Aufbau wie ein
+       Fotostudio-Setup auf rauer Betonwand:
+       1. warmes Key-Light (dezenter Mandarine-Akzent) von oben links
+       2. kuehles Fill-Light von oben rechts
+       3. weicher Studio-Wash von unten
+       4. feines Korn (raue Beton-Textur, SVG-Noise inline)
+       5. Beton-Basistoene als Verlauf
+       6. dezente Vignette in den Ecken */
+    --shell-wall:
+      radial-gradient(1300px 900px at 10% -12%, rgba(255, 77, 0, 0.10) 0%, rgba(255, 77, 0, 0.035) 32%, rgba(255, 77, 0, 0) 62%),
+      radial-gradient(1500px 1000px at 88% -18%, rgba(72, 92, 140, 0.13) 0%, rgba(72, 92, 140, 0) 60%),
+      radial-gradient(1700px 1200px at 50% 125%, rgba(32, 35, 46, 0.5) 0%, rgba(32, 35, 46, 0) 70%),
+      radial-gradient(140% 100% at 50% 40%, rgba(0, 0, 0, 0) 60%, rgba(0, 0, 0, 0.32) 100%),
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='240' height='240' filter='url(%23n)' opacity='0.045'/%3E%3C/svg%3E"),
+      linear-gradient(155deg, #111217 0%, #0b0c10 38%, #08090c 68%, #050608 100%);
   }
 }
 
@@ -69,6 +93,10 @@
   body {
     @apply bg-background text-foreground antialiased;
     font-feature-settings: "rlig" 1, "calt" 1;
+    /* Premium-Betonwand hinter allem (Basis, z.B. Login). */
+    background-color: #07080b;
+    background-image: var(--shell-wall);
+    background-attachment: fixed;
   }
 }
 
@@ -81,6 +109,13 @@
 }
 .fs-night .bg-white {
   background-color: #12141c;
+  /* Cards bekommen Tiefe: feiner vertikaler Verlauf statt Flat-Fill. */
+  background-image: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.045) 0%,
+    rgba(255, 255, 255, 0) 40%,
+    rgba(0, 0, 0, 0.22) 100%
+  );
 }
 .fs-night .bg-zinc-50,
 .fs-night .bg-zinc-50\/50,
@@ -165,30 +200,52 @@
   }
 }
 
+/* Hinweis: Der Collapsed-Zustand der Sidebar (Icon-Rail) wird seit
+   dashboard-01 komplett von der offiziellen ui/sidebar-Komponente
+   via data-collapsible="icon" gesteuert — kein Custom-CSS noetig. */
+
 /* ------------------------------------------------------------------
-   Kollabierte Sidebar (dashboard-1 Icon-Rail): nur Icons zeigen,
-   Texte/Labels/Badges ausblenden, Buttons zentrieren.
+   "Different kinds of black": Verlaeufe statt flacher Schwarztoene
+   fuer Sidebar, Shell-Panel, Header und Cards.
    ------------------------------------------------------------------ */
-[data-state="collapsed"] [data-sidebar-group-label] {
-  display: none;
+
+/* Der Wrapper der offiziellen ui/sidebar deckt bei Variante "inset"
+   den Body ab — er bekommt exakt dieselbe Betonwand, damit der
+   gesamte Bereich hinter der Shell wie aus einem Guss wirkt. */
+.group\/sidebar-wrapper {
+  background-color: #07080b;
+  background-image: var(--shell-wall);
+  background-attachment: fixed;
 }
-[data-state="collapsed"] aside button {
-  justify-content: center;
-  padding-left: 0.5rem;
-  padding-right: 0.5rem;
+
+/* Die Desktop-Sidebar liegt transparent AUF der Wand (kein eigener
+   Verlauf mehr) — so bleibt der Bereich hinter der Shell einheitlich. */
+[data-sidebar="sidebar"]:not([data-mobile="true"]) {
+  background-color: transparent;
+  background-image: none;
 }
-[data-state="collapsed"] aside button span {
-  display: none;
+
+/* Das Mobile-Sheet muss deckend bleiben und bekommt die Wand direkt. */
+[data-sidebar="sidebar"][data-mobile="true"] {
+  background-color: #07080b;
+  background-image: var(--shell-wall);
 }
-[data-state="collapsed"] aside .fs-side-text {
-  display: none;
+
+/* Inset-Panel der Shell: dunkler Verlauf ueber dem WebGL-Shader. */
+.shell-panel {
+  background-image: linear-gradient(
+    165deg,
+    rgba(18, 20, 28, 0.72) 0%,
+    rgba(7, 8, 12, 0.6) 45%,
+    rgba(13, 15, 21, 0.68) 100%
+  );
 }
-[data-state="collapsed"] aside .fs-side-header {
-  justify-content: center;
-  padding-left: 0;
-  padding-right: 0;
-}
-[data-state="collapsed"] aside .fs-side-usercard {
-  flex-direction: column;
-  gap: 0.5rem;
+
+/* Shell-Header: vertikaler Verlauf mit leichtem Glanz oben. */
+.shell-header {
+  background-image: linear-gradient(
+    180deg,
+    rgba(17, 19, 27, 0.85) 0%,
+    rgba(9, 10, 15, 0.72) 100%
+  );
 }

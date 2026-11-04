@@ -23,25 +23,38 @@ export function sellerBaseUrl(url: string): string {
   return m ? m[1] : url.trim().replace(/\/$/, "");
 }
 
-// Sammelt Album-IDs aus einer bereits geladenen Seite.
-function extractAlbumIds($: cheerio.CheerioAPI): string[] {
-  const ids: string[] = [];
+// Sammelt Album-Eintraege (ID + Titel) aus einer bereits geladenen Seite.
+// Der Titel steht im title-Attribut des Album-Ankers ("album3__main").
+interface AlbumEntry {
+  id: string;
+  title: string;
+}
+
+function extractAlbumEntries($: cheerio.CheerioAPI): AlbumEntry[] {
+  const out: AlbumEntry[] = [];
   $("a[href*='/albums/']").each((_, a) => {
-    const m = ($(a).attr("href") || "").match(/\/albums\/(\d+)/);
-    if (m) ids.push(m[1]);
+    const href = $(a).attr("href") || "";
+    const m = href.match(/\/albums\/(\d+)/);
+    if (!m) return;
+    const title = (($(a).attr("title") || "") + " " + $(a).text()).trim();
+    out.push({ id: m[1], title });
   });
-  return ids;
+  return out;
 }
 
 // Liest die Album-Listen eines Sellers und sammelt Album-URLs (1 Album = 1 Produkt).
 // Funktioniert mit jeder Seller-URL (Basis, /categories oder /albums):
 //   1. /categories laden -> alle Kategorie-IDs sammeln
 //   2. /albums + jede Kategorie-Seite paginiert durchgehen
-// Stoppt fruehzeitig, sobald `limit` Alben gefunden sind (neueste zuerst).
-export async function collectAlbumUrls(sellerUrl: string, limit = 100, maxPagesPerList = 10): Promise<string[]> {
+// WICHTIG: Junk-Alben (WHATSAPP, Infos, Datums-Updates) werden schon hier anhand
+// des Listen-Titels aussortiert und verbrauchen das Limit NICHT — sonst fuellt
+// sich der Shop nie, weil die neuesten Alben vieler Seller reine Info-Alben sind.
+// Stoppt fruehzeitig, sobald `limit` ECHTE Alben gefunden sind (neueste zuerst).
+export async function collectAlbumUrls(sellerUrl: string, limit = 100, maxPagesPerList = 20): Promise<string[]> {
   const base = sellerBaseUrl(sellerUrl);
   const headers = { "User-Agent": USER_AGENT, Referer: base };
-  const found = new Set<string>();
+  const seen = new Set<string>(); // alle gesehenen Album-IDs (inkl. Junk) fuer Seitenabbruch
+  const good = new Map<string, string>(); // nur echte Alben: id -> url
 
   // 1) Kategorien des Sellers sammeln (/categories-Seite)
   const categoryIds = new Set<string>();
@@ -64,7 +77,7 @@ export async function collectAlbumUrls(sellerUrl: string, limit = 100, maxPagesP
     ...[...categoryIds].slice(0, 50).map((id) => `${base}/categories/${id}`),
   ];
   for (const listUrl of listUrls) {
-    if (found.size >= limit) break;
+    if (good.size >= limit) break;
     for (let page = 1; page <= maxPagesPerList; page++) {
       let res: Response;
       try {
@@ -74,14 +87,21 @@ export async function collectAlbumUrls(sellerUrl: string, limit = 100, maxPagesP
       }
       if (!res.ok) break; // Seite nicht erreichbar -> letzte Seite der Liste
       const $ = cheerio.load(await res.text());
-      const before = found.size;
-      for (const id of extractAlbumIds($)) found.add(`${base}/albums/${id}`);
-      if (found.size === before) break; // keine neuen Alben -> letzte Seite erreicht
-      if (found.size >= limit) break;
+      let newOnPage = 0;
+      for (const entry of extractAlbumEntries($)) {
+        if (seen.has(entry.id)) continue;
+        seen.add(entry.id);
+        newOnPage++;
+        if (isJunkAlbumTitle(entry.title)) continue; // Junk verbraucht kein Limit
+        if (good.size < limit) good.set(entry.id, `${base}/albums/${entry.id}`);
+      }
+      if (newOnPage === 0) break; // keine neuen Alben -> letzte Seite erreicht
+      if (good.size >= limit) break;
     }
   }
-  // Neueste Alben zuerst (Yupoo listet absteigend), auf limit kuerzen
-  return [...found].slice(0, limit);
+  // Neueste echte Alben zuerst (Yupoo listet absteigend), auf limit kuerzt sich
+  // die Liste bereits durch das Sammel-Limit.
+  return [...good.values()];
 }
 
 export interface ScrapeRunResult {
@@ -146,10 +166,28 @@ export async function extractAlbumPhotos(
   return { title, photos: photos.slice(0, maxPhotos) };
 }
 
+// Alben, die KEINE Produkte sind: Kontakt-/Info-Alben des Sellers
+// (WhatsApp-/Telegram-Kontaktkarten, Bestell-/Versandhinweise, QC-Charts,
+// reine Datums-Sammelalben wie "Oct.29th"). Werden komplett uebersprungen,
+// damit sie nie als "Produkt" im Shop landen.
+const JUNK_ALBUM_TITLE =
+  /whatsapp|telegram|wechat|weixin|kakao|contact|kontakt|how to order|shipping|versand|payment|zahlung|qc\b|quality\s*check|daily orders?|reminder|redirect|customer service|after[- ]?sale|notice|coupon|updated?\s*daily|^(jan|feb|m[aä]r|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-zä]*\.?\s*\d{1,2}(?:st|nd|rd|th)?\b/i;
+
+// Seller tarnen Info-Alben mit Unicode-Zierschriften (z.B. "𝑹𝒆𝒎𝒊𝒏𝒅𝒆𝒓"),
+// damit Schluesselwort-Filter nicht greifen. NFKD loest die mathematischen
+// Unicode-Buchstaben auf ihre ASCII-Basis auf (𝑹 -> R).
+function isJunkAlbumTitle(title: string): boolean {
+  return JUNK_ALBUM_TITLE.test(title.normalize("NFKD"));
+}
+
 // Scraped EIN Album im Per-Foto-Modus. Gibt die Zahl der Produkte zurueck.
 // Fallback: Album ohne Fotos -> klassischer 1-Album-1-Produkt-Scrape.
 export async function scrapeAlbumToProducts(albumUrl: string): Promise<number> {
   const { title, photos } = await extractAlbumPhotos(albumUrl);
+  if (isJunkAlbumTitle(title)) {
+    console.info(`[seller-scraper] SKIP Junk-Album "${title}" — ${albumUrl}`);
+    return 0;
+  }
   if (photos.length === 0) {
     await scrapeToProduct(albumUrl);
     return 1;
