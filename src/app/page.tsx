@@ -179,7 +179,8 @@ export default function DashboardPage() {
         setUser(null);
         return;
       }
-      const data: WorkspaceResponse = await res.json();
+      const data: WorkspaceResponse & {shop_v2?:boolean} = await res.json();
+      if (data.shop_v2 && new URLSearchParams(window.location.search).get("view") !== "gram") { window.location.replace("/shop"); return; }
       setUser(data.current_user);
       setCnyToEur(data.settings.cny_to_eur);
       setRateInput(String(data.settings.cny_to_eur));

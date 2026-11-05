@@ -64,16 +64,19 @@
        1. warmes Key-Light (dezenter Mandarine-Akzent) von oben links
        2. kuehles Fill-Light von oben rechts
        3. weicher Studio-Wash von unten
-       4. feines Korn (raue Beton-Textur, SVG-Noise inline)
-       5. Beton-Basistoene als Verlauf
-       6. dezente Vignette in den Ecken */
+       4. Vignette in den Ecken
+       5. kachelbare Beton-Textur (Gussflecken, Poren, Korn, Schalung)
+       6. Beton-Basiston als Fallback */
+    --shell-wall-color: #0c0d10;
     --shell-wall:
       radial-gradient(1300px 900px at 10% -12%, rgba(255, 77, 0, 0.10) 0%, rgba(255, 77, 0, 0.035) 32%, rgba(255, 77, 0, 0) 62%),
       radial-gradient(1500px 1000px at 88% -18%, rgba(72, 92, 140, 0.13) 0%, rgba(72, 92, 140, 0) 60%),
-      radial-gradient(1700px 1200px at 50% 125%, rgba(32, 35, 46, 0.5) 0%, rgba(32, 35, 46, 0) 70%),
-      radial-gradient(140% 100% at 50% 40%, rgba(0, 0, 0, 0) 60%, rgba(0, 0, 0, 0.32) 100%),
-      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='240' height='240' filter='url(%23n)' opacity='0.045'/%3E%3C/svg%3E"),
-      linear-gradient(155deg, #111217 0%, #0b0c10 38%, #08090c 68%, #050608 100%);
+      radial-gradient(1700px 1200px at 50% 125%, rgba(32, 35, 46, 0.45) 0%, rgba(32, 35, 46, 0) 70%),
+      radial-gradient(140% 100% at 50% 40%, rgba(0, 0, 0, 0) 55%, rgba(0, 0, 0, 0.38) 100%),
+      url("/brand/concrete-wall.svg"),
+      linear-gradient(155deg, #1a1b20 0%, #121318 40%, #0c0d11 72%, #08090c 100%);
+    --shell-wall-size: auto, auto, auto, auto, 640px 640px, auto;
+    --shell-wall-repeat: no-repeat, no-repeat, no-repeat, no-repeat, repeat, no-repeat;
   }
 }
 
@@ -94,8 +97,10 @@
     @apply bg-background text-foreground antialiased;
     font-feature-settings: "rlig" 1, "calt" 1;
     /* Premium-Betonwand hinter allem (Basis, z.B. Login). */
-    background-color: #07080b;
+    background-color: var(--shell-wall-color);
     background-image: var(--shell-wall);
+    background-size: var(--shell-wall-size);
+    background-repeat: var(--shell-wall-repeat);
     background-attachment: fixed;
   }
 }
@@ -213,8 +218,10 @@
    den Body ab — er bekommt exakt dieselbe Betonwand, damit der
    gesamte Bereich hinter der Shell wie aus einem Guss wirkt. */
 .group\/sidebar-wrapper {
-  background-color: #07080b;
+  background-color: var(--shell-wall-color);
   background-image: var(--shell-wall);
+  background-size: var(--shell-wall-size);
+  background-repeat: var(--shell-wall-repeat);
   background-attachment: fixed;
 }
 
@@ -227,8 +234,10 @@
 
 /* Das Mobile-Sheet muss deckend bleiben und bekommt die Wand direkt. */
 [data-sidebar="sidebar"][data-mobile="true"] {
-  background-color: #07080b;
+  background-color: var(--shell-wall-color);
   background-image: var(--shell-wall);
+  background-size: var(--shell-wall-size);
+  background-repeat: var(--shell-wall-repeat);
 }
 
 /* Inset-Panel der Shell: dunkler Verlauf ueber dem WebGL-Shader. */
@@ -249,3 +258,37 @@
     rgba(9, 10, 15, 0.72) 100%
   );
 }
+
+/* Fashion Supply storefront: ASOS-like product-first layout on the dark shell. */
+.commerce-app{min-height:100vh;background:transparent;color:hsl(var(--foreground));}
+.commerce-topline{text-align:center;font-size:10px;letter-spacing:.22em;padding:11px 16px;border-bottom:1px solid hsl(var(--border));color:hsl(var(--muted-foreground));}
+.commerce-header{position:sticky;top:0;z-index:40;background:hsl(var(--background)/.97);border-bottom:1px solid hsl(var(--border));}
+.commerce-nav{display:flex;align-items:center;gap:7px;white-space:nowrap;font-size:12px;color:hsl(var(--muted-foreground));}.commerce-nav.active,.commerce-nav:hover{color:hsl(var(--foreground));}
+.commerce-intro{display:flex;justify-content:space-between;gap:32px;padding:0 0 24px;}.commerce-title{font-size:clamp(28px,4vw,48px);line-height:1.05;letter-spacing:-.04em;font-weight:500;margin-top:8px;}.commerce-eyebrow{font-size:10px;line-height:1.5;letter-spacing:.2em;text-transform:uppercase;color:hsl(var(--muted-foreground));}
+.commerce-button{display:inline-flex;justify-content:center;align-items:center;gap:10px;min-height:44px;padding:12px 20px;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;background:hsl(var(--primary));color:hsl(var(--primary-foreground));border:1px solid transparent;border-radius:0;transition:opacity .15s;}.commerce-button:hover{opacity:.88;}.commerce-button:disabled{opacity:.4;cursor:not-allowed;}.commerce-button.secondary{background:transparent;color:hsl(var(--foreground));border-color:hsl(var(--border));}
+.commerce-input{background:hsl(var(--background));border:1px solid hsl(var(--border));border-radius:0;padding:11px 12px;min-height:44px;color:hsl(var(--foreground));font-size:13px;}.commerce-field{display:flex;flex-direction:column;gap:8px;font-size:12px;color:hsl(var(--muted-foreground));}.commerce-search{outline:none;background:none;font-size:12px;width:100%;padding:12px 0;}
+.commerce-tab{white-space:nowrap;min-height:40px;padding:8px 14px;font-size:12px;font-weight:600;letter-spacing:.04em;color:hsl(var(--muted-foreground));border-bottom:2px solid transparent;}.commerce-tab.selected{color:hsl(var(--foreground));border-bottom-color:hsl(var(--foreground));}
+.commerce-option{padding:10px 14px;border:1px solid hsl(var(--border));min-height:44px;font-size:12px;}.commerce-option.selected{border-color:hsl(var(--foreground));}.commerce-option:disabled{opacity:.35;text-decoration:line-through;cursor:not-allowed;}
+.commerce-panel{padding:24px;border:1px solid hsl(var(--border));border-radius:0;background:hsl(var(--card)/.45);}.commerce-status{display:inline-block;font-size:10px;line-height:1.5;padding:5px 8px;border:1px solid hsl(var(--border));background:hsl(var(--background));border-radius:3px;color:hsl(var(--muted-foreground));}.commerce-status-ok{color:#9ee4bb;border-color:#345445;}
+.commerce-save{position:absolute;top:10px;right:10px;z-index:1;display:grid;place-items:center;width:36px;height:36px;border-radius:50%;background:hsl(var(--background)/.92);}
+.commerce-badge{position:absolute;left:10px;top:10px;z-index:1;font-size:10px;letter-spacing:.12em;text-transform:uppercase;padding:4px 8px;background:hsl(var(--background)/.92);}
+.commerce-badge-private{top:auto;bottom:10px;}
+.commerce-notice{padding:12px 16px;margin:12px 0;font-size:13px;border:1px solid hsl(var(--border));}.commerce-error{color:#ffb4ab;border-color:#8c4545;}.commerce-empty{padding:70px 20px;text-align:center;color:hsl(var(--muted-foreground));display:flex;align-items:center;flex-direction:column;gap:18px;}.commerce-empty h2{font-size:20px;color:hsl(var(--foreground));}
+.commerce-app :focus-visible{outline:2px solid hsl(var(--primary));outline-offset:4px;}.commerce-skip{position:fixed;left:16px;top:-100px;z-index:100;padding:12px;background:hsl(var(--primary));}.commerce-skip:focus{top:16px;}
+.commerce-pill{display:inline-flex;align-items:center;gap:8px;min-height:36px;padding:6px 12px;border:1px solid hsl(var(--border));font-size:12px;white-space:nowrap;background:transparent;}.commerce-pill.selected{border-color:hsl(var(--foreground));background:hsl(var(--secondary));}
+.commerce-chip{display:inline-flex;align-items:center;gap:6px;min-height:32px;padding:4px 10px;border:1px solid hsl(var(--border));font-size:12px;}.commerce-chip.selected{border-color:hsl(var(--foreground));}
+.commerce-filter-bar{background:linear-gradient(180deg,rgba(9,10,15,.78),rgba(9,10,15,.62));backdrop-filter:blur(10px);}
+.commerce-filter-panel{border:1px solid hsl(var(--border));background:hsl(var(--card));padding:12px;max-height:min(70vh,420px);overflow:auto;min-width:16rem;}
+.commerce-filter-option{display:flex;width:100%;align-items:center;gap:8px;min-height:40px;padding:8px 6px;font-size:13px;text-align:left;}.commerce-filter-option.selected{background:hsl(var(--secondary));}
+.commerce-progress{height:2px;background:hsl(var(--border));}.commerce-progress > span{display:block;height:100%;background:hsl(var(--foreground));}
+.commerce-header-search{width:100%;min-height:36px;padding:8px 12px 8px 36px;border:1px solid hsl(var(--border));background:hsl(var(--background)/.4);font-size:13px;}
+.commerce-suggest{position:absolute;left:0;right:0;top:calc(100% + 6px);z-index:40;border:1px solid hsl(var(--border));background:hsl(var(--card));max-height:360px;overflow:auto;}
+.commerce-count{position:absolute;top:-6px;right:-8px;min-width:16px;height:16px;padding:0 4px;border-radius:8px;background:hsl(var(--primary));color:hsl(var(--primary-foreground));font-size:10px;line-height:16px;text-align:center;}
+.commerce-trust{display:grid;gap:10px;padding:16px;border:1px solid hsl(var(--border));font-size:13px;}.commerce-trust li{display:flex;align-items:center;gap:10px;}
+.commerce-accordion{padding:14px 0;}.commerce-accordion summary{cursor:pointer;font-size:14px;font-weight:600;list-style:none;display:flex;justify-content:space-between;}.commerce-accordion summary::-webkit-details-marker{display:none;}.commerce-accordion summary::after{content:"+";font-weight:400;}.commerce-accordion[open] summary::after{content:"–";}
+.commerce-buybar{position:fixed;left:0;right:0;bottom:0;z-index:30;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 16px calc(12px + env(safe-area-inset-bottom));border-top:1px solid hsl(var(--border));background:hsl(var(--background)/.94);backdrop-filter:blur(10px);}
+@media(max-width:640px){.commerce-intro{flex-direction:column;}.commerce-intro .commerce-button{align-self:start;}.commerce-panel{padding:18px;}}
+@media(prefers-reduced-motion:reduce){.commerce-app *{animation:none!important;transition:none!important;scroll-behavior:auto!important;}}
+.commerce-product{min-width:0;overflow-wrap:anywhere;}
+.commerce-product a{min-width:0;}
+.commerce-app h1{overflow-wrap:anywhere;}

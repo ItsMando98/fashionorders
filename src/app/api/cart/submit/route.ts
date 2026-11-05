@@ -1,9 +1,11 @@
+import { enabled as commerceEnabled } from "@/lib/commerce/core";
 import { NextResponse } from "next/server";
 import { eq, and } from "drizzle-orm";
 import { getAuthUser } from "@/lib/server/auth";
 import { db, items } from "@/lib/server/db";
 
 export async function POST(request: Request) {
+  if (commerceEnabled()) return NextResponse.json({detail:"Bitte den neuen Shop-/Importablauf verwenden."},{status:409});
   const user = await getAuthUser(request);
   if (!user) {
     return NextResponse.json({ detail: "Not authenticated" }, { status: 401 });

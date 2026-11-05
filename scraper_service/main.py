@@ -12,7 +12,7 @@ import ipaddress
 import os
 import re
 import socket
-from urllib.parse import parse_qs, unquote, urlparse
+from urllib.parse import parse_qs, unquote, urlparse, urljoin
 
 from fastapi import FastAPI, Header, HTTPException
 from pydantic import BaseModel
@@ -101,7 +101,7 @@ def first(page, selector: str):
 def looks_blocked(page) -> bool:
     """Detect Cloudflare / anti-bot interstitials."""
     status = getattr(page, "status", 200) or 200
-    if status in (401, 403, 503):
+    if status in (401, 403, 404, 503):
         return True
     marker = page.css("title::text")
     title = marker.get() if marker else ""
@@ -169,6 +169,8 @@ def _parse_weidian_payload(data: dict, item_id: str, url: str) -> dict | None:
         "price_cny": price,
         "available_sizes": " | ".join(sizes[:10]) or "See Weidian SKU",
         "img_url": img_url,
+        "images": list(dict.fromkeys([img_url] + [x for x in (result.get("headImgs") or result.get("imgs") or []) if isinstance(x, str)])),
+        "variant_hints": {"sizes": [], "colors": []},
         "weidian_url": url,
     }
 
@@ -245,8 +247,57 @@ def fetch_yupoo_page(url: str):
         return page, False
 
 
+def procurement_link(raw: str, base: str = "") -> str | None:
+    try:
+        parsed = urlparse(urljoin(base, raw.strip().replace("&amp;", "&")))
+        if (parsed.hostname or "").endswith(".yupoo.com") and parsed.path.endswith("/external"):
+            parsed = urlparse(parse_qs(parsed.query).get("url", [""])[0])
+        if parsed.scheme not in ("http", "https") or parsed.username or parsed.password or parsed.port:
+            return None
+        query = parse_qs(parsed.query)
+        ident = query.get("id", [""])[0]
+        if parsed.hostname in ("item.taobao.com", "item.m.taobao.com") and re.fullmatch(r"/item\.html?", parsed.path) and ident.isdigit():
+            return f"https://item.taobao.com/item.htm?id={ident}"
+        ident = query.get("itemID", [""])[0]
+        if parsed.hostname in ("weidian.com", "www.weidian.com") and parsed.path == "/item.html" and ident.isdigit():
+            return f"https://weidian.com/item.html?itemID={ident}"
+    except (ValueError, TypeError):
+        pass
+    return None
+
+
+def procurement_links(section, text: str, base: str) -> list[str]:
+    raw_links = [a.attrib.get("href", "") for a in section.css("a[href]")] if section else []
+    raw_links += re.findall(r"https?://[^\s<>\"'，。]+", text)
+    return list(dict.fromkeys(link for raw in raw_links if (link := procurement_link(raw, base))))
+
+
+def unique_product_images(urls: list[str]) -> list[str]:
+    images = {}
+    def thumbnail(value):
+        return bool(re.search(r"/(?:medium|small|square|big|thumb)\.[^/]+$", urlparse(value).path, re.I))
+    for value in urls:
+        parsed = urlparse(value)
+        folder = parsed.hostname == "photo.yupoo.com" and re.fullmatch(r"/[^/]+/[a-f0-9]{10}/[^/]+", parsed.path, re.I)
+        key = parsed.netloc + parsed.path.rsplit('/', 1)[0] if folder else value
+        if key not in images or (thumbnail(images[key]) and not thumbnail(value)):
+            images[key] = value
+    return list(images.values())
+
+
+def variant_hints(text: str) -> dict:
+    sizes = re.search(r"(?:尺码|尺寸|sizes?)\s*[:：]\s*([^\n]+)", text, re.I)
+    colors = re.search(r"(?:颜色|colou?rs?)\s*[:：]\s*([^\n]+)", text, re.I)
+    return {
+        "sizes": list(dict.fromkeys(v for v in re.split(r"[\s,，/]+", sizes[1] if sizes else "") if re.fullmatch(r"(?:\d{1,3}(?:\.5)?|[2-6]?X{0,3}[SML]|XXL|XXXL|ONE[- ]?SIZE)", v, re.I))),
+        "colors": list(dict.fromkeys(v for v in re.split(r"[\s,，/]+", colors[1] if colors else "") if v and len(v) < 40 and ":" not in v)),
+    }
+
+
 def scrape_yupoo(url: str) -> dict:
     page, used_stealth = fetch_yupoo_page(url)
+    if (getattr(page, "status", 200) or 200) >= 400:
+        raise HTTPException(502, "Album is unavailable or access is blocked.")
 
     title_el = first(page, ".showalbumheader__gallerytitle")
     sub_el = first(page, ".showalbumheader__gallerysubtitle")
@@ -254,26 +305,19 @@ def scrape_yupoo(url: str) -> dict:
 
     raw_title = (title_el.text if title_el else "") or ""
     raw_title = raw_title.strip()
+    if not raw_title or re.search(r"not found|404|页面不存在", raw_title, re.I):
+        raise HTTPException(502, "No product album was identified.")
     raw_sub = (sub_el.text if sub_el else "") or ""
     raw_sub = raw_sub.strip()
     img_url = (og_img_el.attrib.get("content", "") if og_img_el else "") or ""
 
-    # Embedded Weidian / Taobao links in the album subtitle
-    weidian_url = ""
-    if sub_el:
-        for anchor in sub_el.css("a[href]"):
-            href = anchor.attrib.get("href", "")
-            if "external?url=" in href:
-                query = parse_qs(urlparse(href).query)
-                ext = query.get("url", [""])[0]
-                if ext:
-                    href = unquote(ext)
-            if "weidian.com" in href or "taobao.com" in href:
-                weidian_url = href
-                break
+    # Procurement links are metadata only. Never follow arbitrary embedded links.
+    links = procurement_links(sub_el, raw_sub, url)
+    weidian_url = links[0] if len(links) == 1 else ""
 
     price = extract_price(raw_title) or extract_price(raw_sub)
-    sizes = "S, M, L, XL, XXL"
+    hints = variant_hints(raw_sub)
+    sizes = ", ".join(hints["sizes"])
 
     if weidian_url and "weidian.com" in weidian_url:
         try:
@@ -291,13 +335,24 @@ def scrape_yupoo(url: str) -> dict:
     if not clean_title:
         clean_title = raw_title or f"Yupoo Album #{album_id}"
 
+    images = []
+    for image in page.css("[data-origin-src], [data-original], [data-src], img[src]"):
+        raw = image.attrib.get("data-origin-src") or image.attrib.get("data-original") or image.attrib.get("data-src") or image.attrib.get("src") or ""
+        if raw.startswith("//"):
+            raw = "https:" + raw
+        if urlparse(raw).hostname == "photo.yupoo.com":
+            images.append(raw)
     return {
+        "images": unique_product_images(images + ([img_url] if img_url else [])),
+        "description": raw_sub,
+        "variant_hints": hints,
         "source_platform": "Yupoo",
         "title": clean_title,
         "price_cny": price,
         "available_sizes": sizes,
         "img_url": img_url,
         "weidian_url": weidian_url or None,
+        "procurement_links": links,
         "used_stealth": used_stealth,
     }
 
@@ -331,3 +386,29 @@ def scrape(req: ScrapeRequest, x_scraper_token: str = Header(default="")):
         raise
     except Exception as err:  # noqa: BLE001 - report any scrape failure as 502
         raise HTTPException(502, f"Scrape failed: {type(err).__name__}")
+
+
+@app.post("/discover")
+def discover(req: ScrapeRequest, x_scraper_token: str = Header(default="")):
+    if TOKEN and x_scraper_token != TOKEN:
+        raise HTTPException(401, "Bad token.")
+    url = validate_url(req.url)
+    parsed = urlparse(url)
+    if not host_matches(parsed.hostname or "", ("yupoo.com",)) or not re.fullmatch(r"/(?:collections/\d+|categories/\d+|albums)/?", parsed.path):
+        raise HTTPException(400, "A Yupoo collection or album list is required.")
+    try:
+        page, used_stealth = fetch_yupoo_page(url)
+        if (getattr(page, "status", 200) or 200) >= 400 or looks_blocked(page):
+            raise HTTPException(502, "Collection is unavailable or blocked.")
+        albums = {}
+        for anchor in page.css("a[href]"):
+            target = urlparse(urljoin(url, anchor.attrib.get("href", "")))
+            match = re.fullmatch(r"/albums/(\d+)/?", target.path)
+            if target.hostname != parsed.hostname or not match:
+                continue
+            albums[match[1]] = {"id": match[1], "title": anchor.attrib.get("title", "") or anchor.text or ""}
+        return {"page_type": "collection", "albums": list(albums.values()), "used_stealth": used_stealth}
+    except HTTPException:
+        raise
+    except Exception as err:
+        raise HTTPException(502, f"Discovery failed: {type(err).__name__}")

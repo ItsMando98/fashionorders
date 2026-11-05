@@ -1,3 +1,4 @@
+import { enabled as commerceEnabled } from "@/lib/commerce/core";
 import { NextResponse } from "next/server";
 import { eq, asc } from "drizzle-orm";
 import ExcelJS from "exceljs";
@@ -16,6 +17,14 @@ export async function GET(request: Request) {
     return NextResponse.json({ detail: "Not authenticated" }, { status: 401 });
   }
 
+  if (commerceEnabled() && user.role !== "admin")
+    return NextResponse.json(
+      {
+        detail:
+          "Der bisherige Kalkulationsexport ist im neuen Shop nicht verfügbar.",
+      },
+      { status: 410 },
+    );
   const feeSettings = await getFeeSettings();
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "Fashion Supply";
@@ -80,7 +89,7 @@ export async function GET(request: Request) {
       .orderBy(asc(items.id));
 
     const memberItems: Item[] = rawItems.map((it) =>
-      enrichItem(it, member, feeSettings)
+      enrichItem(it, member, feeSettings),
     );
     const sheetName = member.name.slice(0, 31);
     const sheet = workbook.addWorksheet(sheetName, {
@@ -121,7 +130,11 @@ export async function GET(request: Request) {
         bold: true,
         color: { argb: "FFF3C343" }, // Crest Yellow text
       };
-      cell.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
+      cell.alignment = {
+        vertical: "middle",
+        horizontal: "center",
+        wrapText: true,
+      };
       cell.border = {
         bottom: { style: "medium", color: { argb: "FF1A3B2B" } },
       };
@@ -144,7 +157,8 @@ export async function GET(request: Request) {
       row.getCell("line_total").value = item.line_total_eur ?? 0;
       row.getCell("status").value = item.order_status || "Pending";
       row.getCell("user_notes").value = item.user_notes || "";
-      row.getCell("admin_notes").value = item.admin_notes || item.tracking_number || "";
+      row.getCell("admin_notes").value =
+        item.admin_notes || item.tracking_number || "";
 
       if (item.album_url || item.url) {
         row.getCell("link").value = {
@@ -174,18 +188,45 @@ export async function GET(request: Request) {
       // Formatting
       row.getCell("brand").alignment = { vertical: "middle" };
       row.getCell("title").alignment = { vertical: "middle", wrapText: true };
-      row.getCell("size").alignment = { vertical: "middle", horizontal: "center" };
+      row.getCell("size").alignment = {
+        vertical: "middle",
+        horizontal: "center",
+      };
       row.getCell("available_sizes").alignment = { vertical: "middle" };
-      row.getCell("base_cny").alignment = { vertical: "middle", horizontal: "right" };
-      row.getCell("base_eur").alignment = { vertical: "middle", horizontal: "right" };
-      row.getCell("fee_eur").alignment = { vertical: "middle", horizontal: "right" };
-      row.getCell("final_eur").alignment = { vertical: "middle", horizontal: "right" };
-      row.getCell("qty").alignment = { vertical: "middle", horizontal: "center" };
-      row.getCell("line_total").alignment = { vertical: "middle", horizontal: "right" };
-      row.getCell("status").alignment = { vertical: "middle", horizontal: "center" };
+      row.getCell("base_cny").alignment = {
+        vertical: "middle",
+        horizontal: "right",
+      };
+      row.getCell("base_eur").alignment = {
+        vertical: "middle",
+        horizontal: "right",
+      };
+      row.getCell("fee_eur").alignment = {
+        vertical: "middle",
+        horizontal: "right",
+      };
+      row.getCell("final_eur").alignment = {
+        vertical: "middle",
+        horizontal: "right",
+      };
+      row.getCell("qty").alignment = {
+        vertical: "middle",
+        horizontal: "center",
+      };
+      row.getCell("line_total").alignment = {
+        vertical: "middle",
+        horizontal: "right",
+      };
+      row.getCell("status").alignment = {
+        vertical: "middle",
+        horizontal: "center",
+      };
       row.getCell("user_notes").alignment = { vertical: "middle" };
       row.getCell("admin_notes").alignment = { vertical: "middle" };
-      row.getCell("link").alignment = { vertical: "middle", horizontal: "center" };
+      row.getCell("link").alignment = {
+        vertical: "middle",
+        horizontal: "center",
+      };
 
       row.getCell("base_cny").numFmt = "¥#,##0.00";
       row.getCell("base_eur").numFmt = "€#,##0.00";
@@ -212,7 +253,8 @@ export async function GET(request: Request) {
     // Summary Rows
     if (memberItems.length > 0) {
       const haulPct =
-        member.custom_haul_percent !== null && member.custom_haul_percent !== undefined
+        member.custom_haul_percent !== null &&
+        member.custom_haul_percent !== undefined
           ? member.custom_haul_percent
           : feeSettings.default_haul_percent;
 
@@ -231,8 +273,12 @@ export async function GET(request: Request) {
       // Haul Handling Fee
       const haulRow = sheet.getRow(rowIndex);
       haulRow.height = 24;
-      haulRow.getCell("title").value = `HAUL HANDLING / ADMIN FEE (+${haulPct}%)`;
-      haulRow.getCell("title").font = { bold: true, color: { argb: "FFB43C0C" } };
+      haulRow.getCell("title").value =
+        `HAUL HANDLING / ADMIN FEE (+${haulPct}%)`;
+      haulRow.getCell("title").font = {
+        bold: true,
+        color: { argb: "FFB43C0C" },
+      };
       haulRow.getCell("line_total").value = {
         formula: `K${rowIndex - 1} * ${haulPct / 100}`,
       };
@@ -244,11 +290,19 @@ export async function GET(request: Request) {
       const grandRow = sheet.getRow(rowIndex);
       grandRow.height = 28;
       grandRow.getCell("title").value = "GRAND TOTAL TO PAY (€)";
-      grandRow.getCell("title").font = { bold: true, size: 11, color: { argb: "FF0D2218" } };
+      grandRow.getCell("title").font = {
+        bold: true,
+        size: 11,
+        color: { argb: "FF0D2218" },
+      };
       grandRow.getCell("line_total").value = {
         formula: `K${rowIndex - 2} + K${rowIndex - 1}`,
       };
-      grandRow.getCell("line_total").font = { bold: true, size: 12, color: { argb: "FF0D2218" } };
+      grandRow.getCell("line_total").font = {
+        bold: true,
+        size: 12,
+        color: { argb: "FF0D2218" },
+      };
       grandRow.getCell("line_total").numFmt = "€#,##0.00";
       grandRow.getCell("line_total").fill = {
         type: "pattern",

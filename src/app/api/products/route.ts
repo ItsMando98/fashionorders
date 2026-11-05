@@ -1,3 +1,5 @@
+import { enabled as commerceEnabled } from "@/lib/commerce/core";
+import { commerceRoute } from "@/lib/commerce/api";
 import { NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/server/auth";
 import { errorResponse } from "@/lib/server/http";
@@ -8,6 +10,7 @@ import { db, products } from "@/lib/server/db";
 // GET /api/products?search=&category=&brand=&page=&page_size=
 // Kunden bekommen PublicProduct (ohne Seller), Admins AdminProduct (mit Seller).
 export async function GET(request: Request) {
+  if (commerceEnabled()) return commerceRoute(request, ['products']);
   const user = await getAuthUser(request);
   if (!user) {
     return NextResponse.json({ detail: "Not authenticated" }, { status: 401 });
@@ -41,6 +44,7 @@ export async function GET(request: Request) {
 // POST /api/products  (Admin)
 // Body: { url } -> scrapen + anlegen, oder manuelle Felder.
 export async function POST(request: Request) {
+  if (commerceEnabled()) return commerceRoute(request, ['products']);
   const user = await getAuthUser(request);
   if (!user || user.role !== "admin") {
     return NextResponse.json({ detail: "Admin access required" }, { status: 403 });

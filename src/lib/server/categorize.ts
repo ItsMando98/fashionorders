@@ -1,3 +1,4 @@
+import { fetchAllowed, readLimited } from "./scraper";
 /**
  * KI-Kategorisierung (Backend): analysiert Produktfotos mit Google Gemini
  * (Vision) und liefert Titel, Gender, Kategorie, Subkategorie, Brand, Farbe.
@@ -34,7 +35,7 @@ export interface AiCategorization {
 }
 
 // Aktuelles Flash-Modell (2.5 ist fuer neue API-Keys nicht mehr verfuegbar)
-const GEMINI_MODEL = "gemini-3.8-flash";
+const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
 const FETCH_HEADERS = {
   "User-Agent":
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
@@ -119,11 +120,11 @@ export async function categorizeProductImage(
   // 1) Foto laden (Yupoo verlangt Referer + Browser-UA)
   let base64: string;
   try {
-    const res = await fetch(imageUrl, {
-      headers: { ...FETCH_HEADERS, Referer: referer },
-    });
-    if (!res.ok) return null;
-    base64 = Buffer.from(await res.arrayBuffer()).toString("base64");
+    const res = await fetchAllowed(imageUrl, { ...FETCH_HEADERS, Referer: referer }, "image");
+    if (!res?.ok) return null;
+    const bytes = await readLimited(res, 8_000_000);
+    if (!bytes) return null;
+    base64 = bytes.toString("base64");
   } catch {
     return null;
   }
@@ -134,6 +135,7 @@ export async function categorizeProductImage(
       `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
     const res = await fetch(endpoint, {
       method: "POST",
+      signal: AbortSignal.timeout(20000),
       headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
       body: JSON.stringify({
         contents: [

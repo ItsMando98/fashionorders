@@ -68,6 +68,7 @@ export function sellerFromUrl(url: string): string {
 // Scraped eine URL und legt das Produkt im Katalog an (Dedupe ueber source_url).
 // Existiert die URL schon, wird das bestehende Produkt aktualisiert.
 export async function scrapeToProduct(url: string, sellerOverride?: string): Promise<ProductRow> {
+  if(process.env.SHOP_V2_ENABLED==='1')throw new PublicError("Bitte den neuen Import-Worker verwenden.",409);
   await ensureDb();
   const feeSettings = await getFeeSettings();
   const scraped = await scrapeAnyUrl(url, feeSettings.cny_to_eur);
@@ -129,6 +130,7 @@ export interface PhotoProductInput {
 
 export async function upsertPhotoProduct(input: PhotoProductInput): Promise<{ row: ProductRow; created: boolean }> {
   await ensureDb();
+  if(process.env.SHOP_V2_ENABLED==='1')throw new PublicError("Einzelfoto-Produkte sind im neuen Importablauf deaktiviert.",409);
   const sourceUrl = `${input.albumUrl}#${input.photoId}`;
   const nowUtc = () => new Date().toISOString().slice(0, 19).replace("T", " ");
 

@@ -1,3 +1,5 @@
+import { enabled as commerceEnabled } from "@/lib/commerce/core";
+import { commerceRoute } from "@/lib/commerce/api";
 import { NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/server/auth";
 import { errorResponse, PublicError } from "@/lib/server/http";
@@ -5,6 +7,7 @@ import { addToCart, getCart } from "@/lib/server/orders";
 
 // GET /api/cart — Warenkorb des eingeloggten Users inkl. Totals.
 export async function GET(request: Request) {
+  if (commerceEnabled()) return commerceRoute(request, ['cart']);
   const user = await getAuthUser(request);
   if (!user) {
     return NextResponse.json({ detail: "Not authenticated" }, { status: 401 });
@@ -20,6 +23,7 @@ export async function GET(request: Request) {
 // POST /api/cart — Produkt in den Warenkorb legen.
 // Body: { product_id, chosen_size?, color_variant?, quantity? }
 export async function POST(request: Request) {
+  if (commerceEnabled()) return commerceRoute(request, ['cart']);
   const user = await getAuthUser(request);
   if (!user) {
     return NextResponse.json({ detail: "Not authenticated" }, { status: 401 });

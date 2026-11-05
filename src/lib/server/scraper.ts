@@ -104,7 +104,7 @@ async function hostIsPublic(hostname: string): Promise<boolean> {
   }
 }
 
-async function readLimited(response: Response, maxBytes: number): Promise<Buffer | null> {
+export async function readLimited(response: Response, maxBytes: number): Promise<Buffer | null> {
   const advertised = Number(response.headers.get("content-length") || 0);
   if (advertised > maxBytes) return null;
   const reader = response.body?.getReader();
@@ -124,7 +124,7 @@ async function readLimited(response: Response, maxBytes: number): Promise<Buffer
   return Buffer.concat(chunks);
 }
 
-async function fetchAllowed(
+export async function fetchAllowed(
   rawUrl: string,
   headers: Record<string, string>,
   kind: "shop" | "image",

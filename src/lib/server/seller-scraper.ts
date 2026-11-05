@@ -1,3 +1,5 @@
+import { fetchAllowed } from "./scraper";
+import { isYupooList } from "./sourcing";
 /**
  * Seller-Scraper (Backend): sammelt die Album-URLs eines Yupoo-Sellers und
  * legt sie als Produkte im globalen Katalog an. Wird vom Cron-Scheduler
@@ -30,16 +32,72 @@ interface AlbumEntry {
   title: string;
 }
 
-function extractAlbumEntries($: cheerio.CheerioAPI): AlbumEntry[] {
+export function extractAlbumEntries($: cheerio.CheerioAPI): AlbumEntry[] {
   const out: AlbumEntry[] = [];
   $("a[href*='/albums/']").each((_, a) => {
     const href = $(a).attr("href") || "";
-    const m = href.match(/\/albums\/(\d+)/);
+    const m = href.match(/^\/albums\/(\d+)(?:\?|$|\/$)/);
     if (!m) return;
     const title = (($(a).attr("title") || "") + " " + $(a).text()).trim();
     out.push({ id: m[1], title });
   });
   return out;
+}
+
+async function loadAlbumEntries(
+  url: string,
+  headers: Record<string, string>,
+): Promise<AlbumEntry[]> {
+  try {
+    const response = await fetchAllowed(url, headers, "shop");
+    if (response?.ok) {
+      const entries = extractAlbumEntries(cheerio.load(await response.text()));
+      if (entries.length) return entries;
+    }
+  } catch {}
+  const sidecar = process.env.SCRAPER_SIDECAR_URL;
+  if (!sidecar || process.env.SCRAPER_SIDECAR_DISABLED === "1")
+    throw new Error("Collection konnte nicht verlässlich gelesen werden.");
+  const response = await fetch(`${sidecar.replace(/\/$/, "")}/discover`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Scraper-Token": process.env.SCRAPER_TOKEN || "",
+    },
+    body: JSON.stringify({ url }),
+    signal: AbortSignal.timeout(65000),
+  });
+  if (!response.ok) throw new Error("Collection konnte nicht gelesen werden.");
+  const result = await response.json();
+  if (!Array.isArray(result.albums))
+    throw new Error("Ungültiges Collection-Ergebnis.");
+  return result.albums.filter(
+    (e: AlbumEntry) => /^\d+$/.test(e.id) && typeof e.title === "string",
+  );
+}
+
+export async function collectAlbumPageUrls(
+  sellerUrl: string,
+  page = 1,
+  load = loadAlbumEntries,
+): Promise<{ urls: string[]; identities: string[] }> {
+  const input = new URL(sellerUrl);
+  const base = sellerBaseUrl(sellerUrl);
+  const path = isYupooList(input) ? input.pathname : "/albums";
+  const entries = await load(`${base}${path}?page=${page}`, {
+    "User-Agent": USER_AGENT,
+    Referer: base,
+  });
+  return {
+    urls: [
+      ...new Set(
+        entries
+          .filter((e) => !isJunkAlbumTitle(e.title))
+          .map((e) => `${base}/albums/${e.id}`),
+      ),
+    ],
+    identities: [...new Set(entries.map((e) => `${base}/albums/${e.id}`))],
+  };
 }
 
 // Liest die Album-Listen eines Sellers und sammelt Album-URLs (1 Album = 1 Produkt).
@@ -50,7 +108,14 @@ function extractAlbumEntries($: cheerio.CheerioAPI): AlbumEntry[] {
 // des Listen-Titels aussortiert und verbrauchen das Limit NICHT — sonst fuellt
 // sich der Shop nie, weil die neuesten Alben vieler Seller reine Info-Alben sind.
 // Stoppt fruehzeitig, sobald `limit` ECHTE Alben gefunden sind (neueste zuerst).
-export async function collectAlbumUrls(sellerUrl: string, limit = 100, maxPagesPerList = 20): Promise<string[]> {
+export async function collectAlbumUrls(
+  sellerUrl: string,
+  limit = Infinity,
+  maxPagesPerList = Infinity,
+  load = loadAlbumEntries,
+): Promise<string[]> {
+  const input = new URL(sellerUrl);
+  const scoped = isYupooList(input);
   const base = sellerBaseUrl(sellerUrl);
   const headers = { "User-Agent": USER_AGENT, Referer: base };
   const seen = new Set<string>(); // alle gesehenen Album-IDs (inkl. Junk) fuer Seitenabbruch
@@ -59,8 +124,10 @@ export async function collectAlbumUrls(sellerUrl: string, limit = 100, maxPagesP
   // 1) Kategorien des Sellers sammeln (/categories-Seite)
   const categoryIds = new Set<string>();
   try {
-    const res = await fetch(`${base}/categories`, { headers });
-    if (res.ok) {
+    const res = scoped
+      ? null
+      : await fetchAllowed(`${base}/categories`, headers, "shop");
+    if (res?.ok) {
       const $ = cheerio.load(await res.text());
       $("a[href*='/categories/']").each((_, a) => {
         const m = ($(a).attr("href") || "").match(/\/categories\/(\d+)/);
@@ -72,23 +139,18 @@ export async function collectAlbumUrls(sellerUrl: string, limit = 100, maxPagesP
   }
 
   // 2) Albumlisten durchgehen: erst /albums (Gesamtuebersicht), dann jede Kategorie
-  const listUrls = [
-    `${base}/albums`,
-    ...[...categoryIds].slice(0, 50).map((id) => `${base}/categories/${id}`),
-  ];
+  const listUrls = scoped
+    ? [`${base}${input.pathname}`]
+    : [
+        `${base}/albums`,
+        ...[...categoryIds].map((id) => `${base}/categories/${id}`),
+      ];
   for (const listUrl of listUrls) {
     if (good.size >= limit) break;
     for (let page = 1; page <= maxPagesPerList; page++) {
-      let res: Response;
-      try {
-        res = await fetch(`${listUrl}?page=${page}`, { headers });
-      } catch {
-        break; // Netzwerkfehler -> naechste Liste
-      }
-      if (!res.ok) break; // Seite nicht erreichbar -> letzte Seite der Liste
-      const $ = cheerio.load(await res.text());
+      const entries = await load(`${listUrl}?page=${page}`, headers);
       let newOnPage = 0;
-      for (const entry of extractAlbumEntries($)) {
+      for (const entry of entries) {
         if (seen.has(entry.id)) continue;
         seen.add(entry.id);
         newOnPage++;
@@ -124,33 +186,44 @@ export interface AlbumPhoto {
 // Yupoo-Albenseiten liefern Fotos als data-origin-src (Full-Res) / data-src.
 export async function extractAlbumPhotos(
   albumUrl: string,
-  maxPhotos = 50
+  maxPhotos = Infinity,
 ): Promise<{ title: string; photos: AlbumPhoto[] }> {
   // Album-Detailseiten brauchen ?uid=1, sonst 404 (verifiziert 2026-11)
   const fetchUrl = /[?&]uid=/.test(albumUrl)
     ? albumUrl
     : `${albumUrl}${albumUrl.includes("?") ? "&" : "?"}uid=1`;
-  const res = await fetch(fetchUrl, {
-    headers: { "User-Agent": USER_AGENT, Referer: sellerBaseUrl(albumUrl) },
-  });
-  if (!res.ok) throw new Error(`album page HTTP ${res.status}`);
+  const res = await fetchAllowed(
+    fetchUrl,
+    { "User-Agent": USER_AGENT, Referer: sellerBaseUrl(albumUrl) },
+    "shop",
+  );
+  if (!res?.ok) throw new Error(`album page HTTP ${res?.status}`);
   const $ = cheerio.load(await res.text());
 
   const albumId = albumUrl.match(/albums\/(\d+)/)?.[1] || "album";
   const title =
-    $(".showalbumheader__gallerytitle").first().text().trim() || `Yupoo Album #${albumId}`;
+    $(".showalbumheader__gallerytitle").first().text().trim() ||
+    `Yupoo Album #${albumId}`;
 
   const photos: AlbumPhoto[] = [];
   const seen = new Set<string>();
   $("[data-origin-src], [data-src]").each((_, el) => {
     // Full-Res bevorzugen; Thumbnails (…/big.jpg, …/square.jpg) ueberspringen
-    const raw = ($(el).attr("data-origin-src") || "").trim() || ($(el).attr("data-src") || "").trim();
+    const raw =
+      ($(el).attr("data-origin-src") || "").trim() ||
+      ($(el).attr("data-src") || "").trim();
     if (!raw || raw.startsWith("data:")) return;
     const url = raw.startsWith("//") ? `https:${raw}` : raw;
     if (!url.includes("photo.yupoo.com")) return;
     // Generische Thumbnails (Cover) ueberspringen — keine eigenen Produkte
-    const lastSegment = url.split("/").pop()?.replace(/\.\w+$/, "").toLowerCase() || "";
-    if (["big", "small", "square", "medium", "thumb"].includes(lastSegment)) return;
+    const lastSegment =
+      url
+        .split("/")
+        .pop()
+        ?.replace(/\.\w+$/, "")
+        .toLowerCase() || "";
+    if (["big", "small", "square", "medium", "thumb"].includes(lastSegment))
+      return;
     // ID = letzte zwei Pfadsegmente ohne Extension (z.B. "35227535_451e0536")
     const id = url
       .split("/")
@@ -205,7 +278,10 @@ export async function scrapeAlbumToProducts(albumUrl: string): Promise<number> {
       });
       count++;
     } catch (err) {
-      console.warn(`[seller-scraper] photo FAIL ${photo.url} —`, err instanceof Error ? err.message : err);
+      console.warn(
+        `[seller-scraper] photo FAIL ${photo.url} —`,
+        err instanceof Error ? err.message : err,
+      );
     }
   }
   return count;
@@ -213,7 +289,10 @@ export async function scrapeAlbumToProducts(albumUrl: string): Promise<number> {
 
 // Scraped bis zu `limit` Alben eines Sellers in den Produktkatalog (Per-Foto-Modus).
 // Dedupe laeuft ueber die unique source_url (album#foto bzw. album).
-export async function scrapeSellerAlbums(sellerUrl: string, limit: number): Promise<ScrapeRunResult> {
+export async function scrapeSellerAlbums(
+  sellerUrl: string,
+  limit: number,
+): Promise<ScrapeRunResult> {
   await ensureDb();
   const albumUrls = await collectAlbumUrls(sellerUrl, limit);
   let added = 0;
@@ -223,7 +302,10 @@ export async function scrapeSellerAlbums(sellerUrl: string, limit: number): Prom
       added += await scrapeAlbumToProducts(url);
     } catch (err) {
       failed++;
-      console.warn(`[seller-scraper] FAIL ${url} —`, err instanceof Error ? err.message : err);
+      console.warn(
+        `[seller-scraper] FAIL ${url} —`,
+        err instanceof Error ? err.message : err,
+      );
     }
   }
   return { total: albumUrls.length, added, failed };
@@ -231,14 +313,19 @@ export async function scrapeSellerAlbums(sellerUrl: string, limit: number): Prom
 
 // Fuehrt einen kompletten Lauf fuer eine konfigurierte Quelle aus und
 // schreibt Status/Zeitpunkt/Ergebnis zurueck in scrape_sources.
-export async function runScrapeSource(source: ScrapeSourceRow): Promise<ScrapeRunResult> {
+export async function runScrapeSource(
+  source: ScrapeSourceRow,
+): Promise<ScrapeRunResult> {
   await ensureDb();
   await db
     .update(scrapeSources)
     .set({ lastStatus: "running", updatedAt: nowUtc() })
     .where(eq(scrapeSources.id, source.id));
   try {
-    const result = await scrapeSellerAlbums(source.sellerUrl, source.perRunLimit);
+    const result = await scrapeSellerAlbums(
+      source.sellerUrl,
+      source.perRunLimit,
+    );
     await db
       .update(scrapeSources)
       .set({
@@ -251,10 +338,18 @@ export async function runScrapeSource(source: ScrapeSourceRow): Promise<ScrapeRu
       .where(eq(scrapeSources.id, source.id));
     return result;
   } catch (err) {
-    const msg = (err instanceof Error ? err.message : String(err)).slice(0, 500);
+    const msg = (err instanceof Error ? err.message : String(err)).slice(
+      0,
+      500,
+    );
     await db
       .update(scrapeSources)
-      .set({ lastRunAt: nowUtc(), lastStatus: "error", lastMessage: msg, updatedAt: nowUtc() })
+      .set({
+        lastRunAt: nowUtc(),
+        lastStatus: "error",
+        lastMessage: msg,
+        updatedAt: nowUtc(),
+      })
       .where(eq(scrapeSources.id, source.id));
     throw err;
   }
@@ -265,9 +360,15 @@ export async function listScrapeSources(): Promise<ScrapeSourceRow[]> {
   return db.select().from(scrapeSources).orderBy(desc(scrapeSources.id));
 }
 
-export async function getScrapeSource(id: number): Promise<ScrapeSourceRow | null> {
+export async function getScrapeSource(
+  id: number,
+): Promise<ScrapeSourceRow | null> {
   await ensureDb();
-  const [row] = await db.select().from(scrapeSources).where(eq(scrapeSources.id, id)).limit(1);
+  const [row] = await db
+    .select()
+    .from(scrapeSources)
+    .where(eq(scrapeSources.id, id))
+    .limit(1);
   return row ?? null;
 }
 

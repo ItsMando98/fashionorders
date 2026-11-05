@@ -7,3 +7,16 @@ node_modules
 .cache_images
 scraped_data.json
 test
+.env
+.env.*
+.supabase-db-password
+backups
+.stage-*
+.restore-complete
+build.log
+*.dump
+data
+restore-media
+*.log
+gallery-diagnostic.ts
+stage-ui-user.ts

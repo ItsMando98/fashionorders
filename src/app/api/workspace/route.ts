@@ -1,3 +1,4 @@
+import { enabled as commerceEnabled } from "@/lib/commerce/core";
 import { NextResponse } from "next/server";
 import { eq, ne, and, sql, desc, asc } from "drizzle-orm";
 import { getAuthUser } from "@/lib/server/auth";
@@ -11,6 +12,10 @@ export async function GET(request: Request) {
     return NextResponse.json({ detail: "Not authenticated" }, { status: 401 });
   }
 
+  if (commerceEnabled()) {
+    const { custom_item_fixed_eur, custom_item_percent, custom_haul_percent, ...safeUser } = user;
+    return NextResponse.json({current_user:safeUser,shop_v2:true,settings:{cny_to_eur:0,eur_to_cny:0,default_item_fixed_eur:0,default_item_percent:0,default_haul_percent:0},my_items:[],shared_items:[],friends_directory:[],my_share_targets:[]});
+  }
   const feeSettings = await getFeeSettings();
 
   // 1. Current user's own items
@@ -230,6 +235,7 @@ export async function GET(request: Request) {
 
   return NextResponse.json({
     current_user: user,
+    shop_v2: commerceEnabled(),
     settings: feeSettings,
     my_items: myItems,
     my_haul_summary: myHaulSummary,

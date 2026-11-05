@@ -1,0 +1,57 @@
+# Apply after the staging restore/migration/pilot gates in docs/COMMERCE-ROLLOUT.md.
+# docker compose --env-file .env --env-file .env.commerce -f docker-compose.yml -f docker-compose.commerce.yml up -d --no-build
+services:
+  app:
+    image: ${FASHION_COMMERCE_IMAGE:?Set the verified release image}
+    environment:
+      SHOP_V2_ENABLED: "1"
+      SCHEMA_MANAGED: "1"
+      DISABLE_SCRAPE_SCHEDULER: "1"
+      SCRAPER_SIDECAR_DISABLED: "0"
+      CATALOG_AGENT_PROVIDER: ${CATALOG_AGENT_PROVIDER:-gemini}
+      CATALOG_AGENT_MODEL: ${CATALOG_AGENT_MODEL:-gemini-3.8-flash}
+      CATALOG_AGENT_MIN_PRODUCT_ID: ${CATALOG_AGENT_MIN_PRODUCT_ID:-}
+      CATALOG_AGENT_MIN_MEDIA_ID: ${CATALOG_AGENT_MIN_MEDIA_ID:-}
+      CATALOG_AGENT_IMAGE_CONSENT: ${CATALOG_AGENT_IMAGE_CONSENT:-}
+      CATALOG_AGENT_API_KEY: ${CATALOG_AGENT_API_KEY:-}
+      MEDIA_WEB_CACHE: /data/media-web-cache
+      STORAGE_PRIVATE_BUCKET: fashion-private
+      STORAGE_CATALOG_BUCKET: fashion-catalog
+      DATABASE_URL: ${SHOP_DATABASE_URL:?Set SHOP_DATABASE_URL for the restricted application role}
+      SUPABASE_INTERNAL_URL: ${SUPABASE_INTERNAL_URL:?Set Supabase internal gateway URL}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:?Set server-only storage key}
+      APP_PUBLIC_URL: ${APP_PUBLIC_URL:?Set canonical shop URL}
+  scraper:
+    image: ${FASHION_SCRAPER_IMAGE:?Set the verified scraper release image}
+  worker:
+    image: ${FASHION_COMMERCE_IMAGE}
+    build: .
+    restart: unless-stopped
+    command: ["npm", "run", "worker"]
+    environment:
+      SHOP_V2_ENABLED: "1"
+      SCHEMA_MANAGED: "1"
+      APP_PUBLIC_URL: ${APP_PUBLIC_URL}
+      DISABLE_SCRAPE_SCHEDULER: "1"
+      CATALOG_AGENT_PROVIDER: ${CATALOG_AGENT_PROVIDER:-gemini}
+      CATALOG_AGENT_MODEL: ${CATALOG_AGENT_MODEL:-gemini-3.8-flash}
+      CATALOG_AGENT_MIN_PRODUCT_ID: ${CATALOG_AGENT_MIN_PRODUCT_ID:-}
+      CATALOG_AGENT_MIN_MEDIA_ID: ${CATALOG_AGENT_MIN_MEDIA_ID:-}
+      CATALOG_AGENT_IMAGE_CONSENT: ${CATALOG_AGENT_IMAGE_CONSENT:-}
+      CATALOG_AGENT_API_KEY: ${CATALOG_AGENT_API_KEY:-}
+      MEDIA_WEB_CACHE: /data/media-web-cache
+      STORAGE_PRIVATE_BUCKET: fashion-private
+      STORAGE_CATALOG_BUCKET: fashion-catalog
+      DATABASE_URL: ${SHOP_DATABASE_URL}
+      SUPABASE_INTERNAL_URL: ${SUPABASE_INTERNAL_URL}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
+      SCRAPER_SIDECAR_URL: http://scraper:8100
+      SCRAPER_TOKEN: ${SCRAPER_TOKEN}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}
+      FASHION_ORDERS_CACHE: /data/cache
+    volumes:
+      - ./data:/data
+    networks:
+      - default
+      - supabase

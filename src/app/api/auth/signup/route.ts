@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import { NextResponse } from "next/server";
 import { sql } from "drizzle-orm";
 import { db, users } from "@/lib/server/db";
@@ -9,7 +10,10 @@ import {
   MIN_PASSWORD_LENGTH,
 } from "@/lib/server/passwords";
 import { clientIp, rateLimit } from "@/lib/server/rate-limit";
-import { SESSION_COOKIE, sessionCookieOptions } from "@/lib/server/session-cookie";
+import {
+  SESSION_COOKIE,
+  sessionCookieOptions,
+} from "@/lib/server/session-cookie";
 
 export async function POST(request: Request) {
   const limit = rateLimit(`signup:${clientIp(request)}`, 5, 60 * 60 * 1000);
@@ -23,8 +27,13 @@ export async function POST(request: Request) {
     if (name.length < 2 || name.length > 40) {
       throw new PublicError("Username must be between 2 and 40 characters.");
     }
-    if (password.length < MIN_PASSWORD_LENGTH || password.length > MAX_PASSWORD_LENGTH) {
-      throw new PublicError(`Password must be at least ${MIN_PASSWORD_LENGTH} characters.`);
+    if (
+      password.length < MIN_PASSWORD_LENGTH ||
+      password.length > MAX_PASSWORD_LENGTH
+    ) {
+      throw new PublicError(
+        `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`,
+      );
     }
 
     const existing = (
@@ -51,6 +60,14 @@ export async function POST(request: Request) {
         .insert(users)
         .values({
           name,
+          handle:
+            (name
+              .toLowerCase()
+              .replace(/[^a-z0-9]+/g, "-")
+              .replace(/^-|-$/g, "")
+              .slice(0, 30) || "user") +
+            "-" +
+            crypto.randomBytes(6).toString("hex"),
           passwordHash: hashPassword(password),
           role: "friend",
           avatarInitials: initials,

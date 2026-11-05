@@ -1,3 +1,4 @@
+import { enabled, database } from "@/lib/commerce/core";
 import { NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/server/auth";
 import { errorResponse } from "@/lib/server/http";
@@ -23,6 +24,11 @@ export async function POST(request: Request, context: RouteContext) {
     const source = await getScrapeSource(sourceId);
     if (!source) return NextResponse.json({ detail: "Source not found" }, { status: 404 });
 
+    if(enabled()) {
+      const tx=database();
+      await tx`INSERT INTO shop_jobs(user_id,kind,payload) VALUES(${user.id},'source',${JSON.stringify({source_id:sourceId,seller_url:source.sellerUrl,limit:source.perRunLimit})}::jsonb)`;
+      return NextResponse.json({started:true},{status:202});
+    }
     const started = triggerSourceRun(sourceId);
     if (!started) {
       return NextResponse.json({ detail: "This source is already running" }, { status: 409 });

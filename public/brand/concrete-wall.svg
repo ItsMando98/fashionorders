@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <!-- Tileable dark concrete: large pour marks, pores, fine grit, faint formwork. -->
+  <defs>
+    <filter id="mottle" x="0" y="0" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.007 0.01" numOctaves="5" seed="11" stitchTiles="stitch"/>
+      <feColorMatrix type="matrix" values="0 0 0 0 0.24  0 0 0 0 0.23  0 0 0 0 0.21  0 0 0 0.9 0"/>
+    </filter>
+    <filter id="pits" x="0" y="0" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.28 0.32" numOctaves="3" seed="23" stitchTiles="stitch"/>
+      <feColorMatrix type="matrix" values="0 0 0 0 0.04  0 0 0 0 0.04  0 0 0 0 0.045  0 0 0 0.55 0"/>
+    </filter>
+    <filter id="grit" x="0" y="0" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="5" stitchTiles="stitch"/>
+      <feColorMatrix type="matrix" values="0 0 0 0 0.7  0 0 0 0 0.68  0 0 0 0 0.64  0 0 0 0.28 0"/>
+    </filter>
+  </defs>
+  <rect width="512" height="512" fill="#16171c"/>
+  <rect width="512" height="512" filter="url(#mottle)" opacity="0.62"/>
+  <rect width="512" height="512" filter="url(#pits)" opacity="0.38"/>
+  <rect width="512" height="512" filter="url(#grit)" opacity="0.22"/>
+  <g opacity="0.07" stroke="#000" stroke-width="1">
+    <line x1="0" y1="96" x2="512" y2="96"/>
+    <line x1="0" y1="192" x2="512" y2="194"/>
+    <line x1="0" y1="288" x2="512" y2="287"/>
+    <line x1="0" y1="384" x2="512" y2="386"/>
+    <line x1="0" y1="480" x2="512" y2="479"/>
+  </g>
+  <g opacity="0.04" stroke="#fff" stroke-width="1">
+    <line x1="0" y1="97" x2="512" y2="97"/>
+    <line x1="0" y1="193" x2="512" y2="195"/>
+    <line x1="0" y1="385" x2="512" y2="387"/>
+  </g>
+</svg>

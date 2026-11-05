@@ -1,589 +1,695 @@
 "use client";
-
-import { useCallback, useEffect, useState } from "react";
-import { Link2, RefreshCw, Pencil, EyeOff, Eye, Play, Pause, Trash2, Clock } from "lucide-react";
+import { useState } from "react";
 import { ShopShell } from "@/components/shop/shell";
-import { formatCny, formatEur, imgSrc } from "@/components/shop/format";
-import type { AdminProduct, ScrapeSource } from "@/lib/types";
-
-export default function AdminProductsPage() {
-  const [products, setProducts] = useState<AdminProduct[]>([]);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
-
-  // Scrape-Formulare
-  const [singleUrl, setSingleUrl] = useState("");
-  const [bulkUrls, setBulkUrls] = useState("");
-  const [scraping, setScraping] = useState(false);
-
-  // Edit-Dialog (einfach gehalten)
-  const [editing, setEditing] = useState<AdminProduct | null>(null);
-  const [editForm, setEditForm] = useState({ title: "", price_cny: "", brand: "", category: "", available_sizes: "", seller: "" });
-
-  const load = useCallback(async () => {
-    setLoading(true);
+import {
+  api,
+  useData,
+  Notice,
+  Status,
+  eur,
+  Pager,
+} from "@/components/commerce/client";
+import Link from "next/link";
+function ProductEditor({
+  id,
+  onClose,
+  onSaved,
+}: {
+  id: number;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const { data, error, reload } = useData(`products/${id}`),
+    [failure, setFailure] = useState(""),
+    [note, setNote] = useState(""),
+    [busy, setBusy] = useState(false);
+  const p = data?.product;
+  // Small helper: run an action, show errors in the red box and always reload afterwards.
+  async function run(action: () => Promise<void>) {
+    setFailure("");
+    setNote("");
     try {
-      const res = await fetch("/api/products?page_size=100&include_inactive=1");
-      if (res.status === 403) {
-        setError("Admin access required.");
-        return;
-      }
-      if (!res.ok) return;
-      const data = await res.json();
-      setProducts(data.products || []);
-      setTotal(data.total || 0);
-    } finally {
-      setLoading(false);
+      await action();
+      await reload();
+      onSaved();
+    } catch (e) {
+      setFailure((e as Error).message);
     }
-  }, []);
-
-  useEffect(() => {
-    load();
-  }, [load]);
-
-  const scrapeSingle = async () => {
-    if (!singleUrl.trim()) return;
-    setScraping(true);
-    setError("");
-    setNotice("");
-    try {
-      const res = await fetch("/api/products", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: singleUrl.trim() }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.detail || "Scrape failed.");
-        return;
-      }
-      setNotice(`Product "${data.product.title}" saved to catalog.`);
-      setSingleUrl("");
-      load();
-    } finally {
-      setScraping(false);
-    }
-  };
-
-  const scrapeBulk = async () => {
-    const urls = bulkUrls
-      .split("\n")
-      .map((u) => u.trim())
-      .filter(Boolean);
-    if (urls.length === 0) return;
-    setScraping(true);
-    setError("");
-    setNotice("");
-    try {
-      const res = await fetch("/api/scrape/bulk", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ urls }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.detail || "Bulk scrape failed.");
-        return;
-      }
-      setNotice(data.message || `Added ${data.added ?? data.count} products.`);
-      setBulkUrls("");
-      load();
-    } finally {
-      setScraping(false);
-    }
-  };
-
-  const openEdit = (p: AdminProduct) => {
-    setEditing(p);
-    setEditForm({
-      title: p.title,
-      price_cny: p.price_cny !== null ? String(p.price_cny) : "",
-      brand: p.brand,
-      category: p.category,
-      available_sizes: p.available_sizes,
-      seller: p.seller,
-    });
-  };
-
-  const saveEdit = async () => {
-    if (!editing) return;
-    const res = await fetch(`/api/products/${editing.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        title: editForm.title,
-        price_cny: editForm.price_cny === "" ? null : Number(editForm.price_cny),
-        brand: editForm.brand,
-        category: editForm.category,
-        available_sizes: editForm.available_sizes,
-        seller: editForm.seller,
-      }),
-    });
-    if (res.ok) {
-      setEditing(null);
-      load();
-    }
-  };
-
-  const toggleActive = async (p: AdminProduct) => {
-    const res = await fetch(`/api/products/${p.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ active: p.active === 1 ? 0 : 1 }),
-    });
-    if (res.ok) load();
-  };
-
-  // ---------- Auto-Scraper (Scrape Sources + Cron-Scheduler) ----------
-  const [sources, setSources] = useState<ScrapeSource[]>([]);
-  const [sourceForm, setSourceForm] = useState({
-    seller_url: "",
-    label: "",
-    interval_hours: "24",
-    per_run_limit: "20",
-  });
-  const [sourceSaving, setSourceSaving] = useState(false);
-
-  const loadSources = useCallback(async () => {
-    const res = await fetch("/api/admin/scrape-sources");
-    if (!res.ok) return;
-    const data = await res.json();
-    setSources(data.sources || []);
-  }, []);
-
-  useEffect(() => {
-    loadSources();
-  }, [loadSources]);
-
-  // Solange eine Quelle laeuft, alle 5s aktualisieren (Status-Polling)
-  useEffect(() => {
-    if (!sources.some((s) => s.last_status === "running")) return;
-    const t = setInterval(() => {
-      loadSources();
-      load();
-    }, 5000);
-    return () => clearInterval(t);
-  }, [sources, loadSources, load]);
-
-  const addSource = async () => {
-    if (!sourceForm.seller_url.trim()) return;
-    setSourceSaving(true);
-    setError("");
-    setNotice("");
-    try {
-      const res = await fetch("/api/admin/scrape-sources", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          seller_url: sourceForm.seller_url.trim(),
-          label: sourceForm.label.trim(),
-          interval_hours: Number(sourceForm.interval_hours) || 24,
-          per_run_limit: Number(sourceForm.per_run_limit) || 20,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.detail || "Could not save source.");
-        return;
-      }
-      setNotice(`Source "${data.source.label || data.source.seller_url}" added — the scheduler picks it up automatically.`);
-      setSourceForm({ seller_url: "", label: "", interval_hours: "24", per_run_limit: "20" });
-      loadSources();
-    } finally {
-      setSourceSaving(false);
-    }
-  };
-
-  const toggleSource = async (s: ScrapeSource) => {
-    const res = await fetch(`/api/admin/scrape-sources/${s.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ active: s.active === 1 ? 0 : 1 }),
-    });
-    if (res.ok) loadSources();
-  };
-
-  const deleteSource = async (s: ScrapeSource) => {
-    if (!window.confirm(`Remove source "${s.label || s.seller_url}"? Products stay in the catalog.`)) return;
-    const res = await fetch(`/api/admin/scrape-sources/${s.id}`, { method: "DELETE" });
-    if (res.ok) loadSources();
-  };
-
-  const runSource = async (s: ScrapeSource) => {
-    const res = await fetch(`/api/admin/scrape-sources/${s.id}/run`, { method: "POST" });
-    if (res.status === 409) {
-      setError("This source is already running.");
+  }
+  async function removeVariant(v: any) {
+    const label = [v.color, v.size].filter(Boolean).join(" / ") || "diese Variante";
+    if (
+      !window.confirm(
+        `„${label}" wirklich entfernen? Ungespeicherte Änderungen an den anderen Varianten gehen dabei verloren.`,
+      )
+    )
       return;
-    }
-    if (res.ok) {
-      setNotice(`Scrape started for "${s.label || s.seller_url}" — running in the background.`);
-      // Kurz warten, damit der Status "running" sichtbar wird
-      setTimeout(loadSources, 1500);
-    }
-  };
-
+    await run(async () => {
+      const r = await api(`products/${id}/variants/${v.id}`, undefined, "DELETE");
+      if (r.hidden)
+        setNote(
+          `„${label}" ist schon in einer Bestellung enthalten. Sie wurde deshalb nicht gelöscht, sondern auf „Nicht lieferbar" gesetzt.`,
+        );
+    });
+  }
+  async function removeImage(m: any) {
+    if (!window.confirm("Dieses Bild wirklich löschen?")) return;
+    await run(async () => {
+      await api(`products/${id}/media/${m.id}`, undefined, "DELETE");
+    });
+  }
+  // Rewrites the whole gallery order/kind in one request (the backend expects the full list).
+  async function saveGallery(media: any[]) {
+    await run(async () => {
+      await api(
+        `products/${id}/gallery`,
+        { media: media.map((m: any, position: number) => ({ ...m, position })) },
+        "PATCH",
+      );
+    });
+  }
   return (
-    <ShopShell>
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="font-display italic font-bold text-3xl">PRODUCT CATALOG</h1>
-            <p className="text-muted-foreground text-sm">
-              {total} products · seller info is only visible here, never in the shop
-            </p>
-          </div>
-          <button
-            onClick={load}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-md border border-border text-sm hover:border-primary/60"
+    <section className="commerce-panel space-y-5">
+      <div className="flex justify-between">
+        <h2 className="text-xl">Produkt bearbeiten</h2>
+        <button className="text-sm underline" onClick={onClose}>
+          Schließen
+        </button>
+      </div>
+      <Notice error={error || failure} text={note} />
+
+      {p && (
+        <>
+          <form
+            key={p.id + JSON.stringify(p.variants)}
+            className="space-y-5"
+            onSubmit={async (e) => {
+              e.preventDefault();
+              setBusy(true);
+              setFailure("");
+              const f = new FormData(e.currentTarget);
+              const variants = p.variants.map((v: any) => ({
+                id: v.id,
+                size: f.get(`size_${v.id}`),
+                color: f.get(`color_${v.id}`),
+                sku: f.get(`sku_${v.id}`),
+                availability: f.get(`availability_${v.id}`),
+                purchase_fen: f.get(`price_${v.id}`)
+                  ? Math.round(Number(f.get(`price_${v.id}`)) * 100)
+                  : null,
+                price_approved: f.get(`approved_${v.id}`) === "on",
+              }));
+              try {
+                await api(
+                  `products/${id}`,
+                  {
+                    title: f.get("title"),
+                    brand: f.get("brand"),
+                    description: f.get("description"),
+                    material: f.get("material"),
+                    fit: f.get("fit"),
+                    gender: f.get("gender"),
+                    supplier: f.get("supplier"),
+                    source_url: f.get("source_url"),
+                    procurement_url: f.get("procurement_url"),
+                    publication: f.get("publication"),
+                    category_ids: f.getAll("categories"),
+                    variants,
+                  },
+                  "PATCH",
+                );
+                await reload();
+                onSaved();
+              } catch (e) {
+                setFailure((e as Error).message);
+              } finally {
+                setBusy(false);
+              }
+            }}
           >
-            <RefreshCw className="h-4 w-4" /> Refresh
-          </button>
-        </div>
-
-        {/* Scrape -> Katalog */}
-        <div className="grid md:grid-cols-2 gap-4">
-          <div className="rounded-lg border border-border bg-card p-4 space-y-3">
-            <h2 className="font-semibold text-sm uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-              <Link2 className="h-4 w-4" /> Scrape single link
-            </h2>
-            <div className="flex gap-2">
-              <input
-                value={singleUrl}
-                onChange={(e) => setSingleUrl(e.target.value)}
-                placeholder="https://seller.x.yupoo.com/albums/123…"
-                className="flex-1 px-3 py-2 rounded-md bg-background border border-border text-sm outline-none focus:border-primary font-mono"
-              />
-              <button
-                onClick={scrapeSingle}
-                disabled={scraping || !singleUrl.trim()}
-                className="px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50"
-              >
-                Scrape
-              </button>
-            </div>
-          </div>
-          <div className="rounded-lg border border-border bg-card p-4 space-y-3">
-            <h2 className="font-semibold text-sm uppercase tracking-wider text-muted-foreground">
-              Bulk scrape (one URL per line, max 20)
-            </h2>
-            <textarea
-              value={bulkUrls}
-              onChange={(e) => setBulkUrls(e.target.value)}
-              rows={2}
-              placeholder={"https://…\nhttps://…"}
-              className="w-full px-3 py-2 rounded-md bg-background border border-border text-sm outline-none focus:border-primary font-mono"
-            />
-            <button
-              onClick={scrapeBulk}
-              disabled={scraping || !bulkUrls.trim()}
-              className="px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50"
-            >
-              {scraping ? "Scraping…" : "Scrape all"}
-            </button>
-          </div>
-        </div>
-
-        {/* Auto-Scraper: Seller-Quellen fuer den Cron-Scheduler */}
-        <div className="rounded-lg border border-border bg-card p-4 space-y-4">
-          <div>
-            <h2 className="font-semibold text-sm uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-              <Clock className="h-4 w-4" /> Auto-scrape sources (cron scheduler)
-            </h2>
-            <p className="text-xs text-muted-foreground mt-1">
-              The scheduler runs on the server and scrapes every active source automatically at its interval.
-              Paste any seller URL (e.g. …/categories) — all categories are walked album by album.
-              Products are deduplicated by source URL.
-            </p>
-          </div>
-
-          {/* Neue Quelle anlegen */}
-          <div className="grid sm:grid-cols-[1fr_140px_110px_110px_auto] gap-2">
-            <input
-              value={sourceForm.seller_url}
-              onChange={(e) => setSourceForm((f) => ({ ...f, seller_url: e.target.value }))}
-              placeholder="https://seller.x.yupoo.com/categories"
-              className="px-3 py-2 rounded-md bg-background border border-border text-sm outline-none focus:border-primary font-mono"
-            />
-            <input
-              value={sourceForm.label}
-              onChange={(e) => setSourceForm((f) => ({ ...f, label: e.target.value }))}
-              placeholder="Label (optional)"
-              className="px-3 py-2 rounded-md bg-background border border-border text-sm outline-none focus:border-primary"
-            />
-            <input
-              type="number"
-              min={1}
-              max={720}
-              value={sourceForm.interval_hours}
-              onChange={(e) => setSourceForm((f) => ({ ...f, interval_hours: e.target.value }))}
-              title="Interval in hours"
-              placeholder="Every h"
-              className="px-3 py-2 rounded-md bg-background border border-border text-sm outline-none focus:border-primary"
-            />
-            <input
-              type="number"
-              min={1}
-              max={1000}
-              value={sourceForm.per_run_limit}
-              onChange={(e) => setSourceForm((f) => ({ ...f, per_run_limit: e.target.value }))}
-              title="Max albums per run"
-              placeholder="Limit"
-              className="px-3 py-2 rounded-md bg-background border border-border text-sm outline-none focus:border-primary"
-            />
-            <button
-              onClick={addSource}
-              disabled={sourceSaving || !sourceForm.seller_url.trim()}
-              className="px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50"
-            >
-              {sourceSaving ? "Saving…" : "Add source"}
-            </button>
-          </div>
-
-          {/* Quellen-Liste */}
-          {sources.length > 0 && (
-            <div className="overflow-x-auto rounded-md border border-border/60">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border text-left text-muted-foreground">
-                    <th className="p-2.5 font-medium">Seller</th>
-                    <th className="p-2.5 font-medium">Interval</th>
-                    <th className="p-2.5 font-medium">Limit</th>
-                    <th className="p-2.5 font-medium">Last run</th>
-                    <th className="p-2.5 font-medium">Result</th>
-                    <th className="p-2.5 font-medium">Status</th>
-                    <th className="p-2.5 font-medium"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sources.map((s) => (
-                    <tr key={s.id} className="border-b border-border/50 last:border-0">
-                      <td className="p-2.5">
-                        <div className="min-w-[180px]">
-                          {s.label && <p className="font-medium">{s.label}</p>}
-                          <a
-                            href={s.seller_url}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-primary text-xs font-mono underline break-all"
-                          >
-                            {s.seller_url}
-                          </a>
-                        </div>
-                      </td>
-                      <td className="p-2.5 whitespace-nowrap">every {s.interval_hours}h</td>
-                      <td className="p-2.5">{s.per_run_limit}</td>
-                      <td className="p-2.5 text-xs text-muted-foreground whitespace-nowrap">
-                        {s.last_run_at ? `${s.last_run_at} UTC` : "never"}
-                      </td>
-                      <td className="p-2.5 text-xs max-w-[220px]">
-                        <span className="line-clamp-2">{s.last_message || "—"}</span>
-                      </td>
-                      <td className="p-2.5">
-                        <span
-                          className={`text-xs px-2 py-0.5 rounded-full border whitespace-nowrap ${
-                            s.last_status === "running"
-                              ? "bg-blue-500/15 text-blue-400 border-blue-500/30"
-                              : s.active === 0
-                                ? "bg-secondary text-muted-foreground border-border"
-                                : s.last_status === "error"
-                                  ? "bg-red-500/15 text-red-400 border-red-500/30"
-                                  : "bg-emerald-500/15 text-emerald-400 border-emerald-500/30"
-                          }`}
-                        >
-                          {s.last_status === "running"
-                            ? "running…"
-                            : s.active === 0
-                              ? "paused"
-                              : s.last_status === "error"
-                                ? "error"
-                                : "active"}
-                        </span>
-                      </td>
-                      <td className="p-2.5">
-                        <div className="flex gap-1 justify-end">
-                          <button
-                            onClick={() => runSource(s)}
-                            disabled={s.last_status === "running"}
-                            className="p-1.5 rounded border border-border hover:border-primary/60 disabled:opacity-40"
-                            title="Run now"
-                          >
-                            <Play className="h-3.5 w-3.5" />
-                          </button>
-                          <button
-                            onClick={() => toggleSource(s)}
-                            className="p-1.5 rounded border border-border hover:border-primary/60"
-                            title={s.active === 1 ? "Pause auto-scrape" : "Activate auto-scrape"}
-                          >
-                            {s.active === 1 ? <Pause className="h-3.5 w-3.5" /> : <Clock className="h-3.5 w-3.5" />}
-                          </button>
-                          <button
-                            onClick={() => deleteSource(s)}
-                            className="p-1.5 rounded border border-border hover:border-red-500/60"
-                            title="Remove source"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-
-        {notice && <p className="text-sm text-emerald-400">{notice}</p>}
-        {error && <p className="text-sm text-red-400">{error}</p>}
-
-        {/* Katalog-Tabelle (Admin-Sicht mit Seller) */}
-        {loading ? (
-          <p className="text-muted-foreground">Loading…</p>
-        ) : (
-          <div className="rounded-lg border border-border bg-card overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border text-left text-muted-foreground">
-                  <th className="p-3 font-medium">Product</th>
-                  <th className="p-3 font-medium">Brand</th>
-                  <th className="p-3 font-medium">AI</th>
-                  <th className="p-3 font-medium text-right">CNY</th>
-                  <th className="p-3 font-medium text-right">EUR</th>
-                  <th className="p-3 font-medium">Seller</th>
-                  <th className="p-3 font-medium">Source</th>
-                  <th className="p-3 font-medium">Status</th>
-                  <th className="p-3 font-medium"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {products.map((p) => (
-                  <tr key={p.id} className="border-b border-border/50 last:border-0">
-                    <td className="p-3">
-                      <div className="flex items-center gap-3 min-w-[220px]">
-                        <div className="w-10 h-10 rounded bg-secondary overflow-hidden shrink-0">
-                          {imgSrc(p.local_image) && (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img src={imgSrc(p.local_image)} alt={p.title} className="w-full h-full object-cover" />
-                          )}
-                        </div>
-                        <span className="line-clamp-2">{p.title}</span>
-                      </div>
-                    </td>
-                    <td className="p-3">{p.brand}</td>
-                    <td className="p-3">
-                      <span
-                        className={`text-xs px-2 py-0.5 rounded-full border whitespace-nowrap ${
-                          p.ai_status === "ok"
-                            ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30"
-                            : p.ai_status === "error"
-                              ? "bg-red-500/15 text-red-400 border-red-500/30"
-                              : "bg-secondary text-muted-foreground border-border"
-                        }`}
-                        title={p.subcategory ? `${p.category} / ${p.subcategory}` : p.category}
-                      >
-                        {p.ai_status === "ok" ? p.gender || "ok" : p.ai_status || "—"}
-                      </span>
-                    </td>
-                    <td className="p-3 text-right">{formatCny(p.price_cny)}</td>
-                    <td className="p-3 text-right">{formatEur(p.price_eur)}</td>
-                    <td className="p-3 font-mono text-xs">{p.seller || "—"}</td>
-                    <td className="p-3">
-                      {p.source_url ? (
-                        <a
-                          href={p.source_url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-primary text-xs underline"
-                        >
-                          Open ↗
-                        </a>
-                      ) : (
-                        "—"
-                      )}
-                    </td>
-                    <td className="p-3">
-                      <span
-                        className={`text-xs px-2 py-0.5 rounded-full border ${
-                          p.active === 1
-                            ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30"
-                            : "bg-red-500/15 text-red-400 border-red-500/30"
-                        }`}
-                      >
-                        {p.active === 1 ? "active" : "hidden"}
-                      </span>
-                    </td>
-                    <td className="p-3">
-                      <div className="flex gap-1 justify-end">
-                        <button
-                          onClick={() => openEdit(p)}
-                          className="p-1.5 rounded border border-border hover:border-primary/60"
-                          title="Edit"
-                        >
-                          <Pencil className="h-3.5 w-3.5" />
-                        </button>
-                        <button
-                          onClick={() => toggleActive(p)}
-                          className="p-1.5 rounded border border-border hover:border-primary/60"
-                          title={p.active === 1 ? "Hide from shop" : "Show in shop"}
-                        >
-                          {p.active === 1 ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        {/* Edit-Dialog */}
-        {editing && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={() => setEditing(null)}>
-            <div
-              className="w-full max-w-md rounded-lg border border-border bg-card p-5 space-y-3"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <h2 className="font-semibold">Edit product #{editing.id}</h2>
-              {(
-                [
-                  ["title", "Title"],
-                  ["brand", "Brand"],
-                  ["category", "Category"],
-                  ["available_sizes", "Available sizes"],
-                  ["price_cny", "Price CNY"],
-                  ["seller", "Seller (admin only)"],
-                ] as const
-              ).map(([key, label]) => (
-                <div key={key}>
-                  <label className="text-xs text-muted-foreground">{label}</label>
+            <div className="grid md:grid-cols-2 gap-4">
+              {[
+                ["title", "Titel"],
+                ["brand", "Marke"],
+                ["material", "Material"],
+                ["fit", "Passform"],
+                ["supplier", "Lieferant"],
+                ["source_url", "Bild-/Produktquelle (Yupoo/Weidian)"],
+                ["procurement_url", "Bestelllink (Taobao/Weidian)"],
+              ].map(([key, label]) => (
+                <label className="commerce-field" key={key}>
+                  {label}
                   <input
-                    value={editForm[key]}
-                    onChange={(e) => setEditForm((f) => ({ ...f, [key]: e.target.value }))}
-                    className="mt-1 w-full px-3 py-2 rounded-md bg-background border border-border text-sm outline-none focus:border-primary"
+                    className="commerce-input"
+                    name={key}
+                    required={key === "title"}
+                    defaultValue={p[key] || ""}
                   />
+                </label>
+              ))}
+              <div className="text-sm md:col-span-2 space-y-2">
+                <p>
+                  {p.procurement_url
+                    ? "Bestelllink hinterlegt. Vor Übergabe Artikel und Variante prüfen."
+                    : "Kein eindeutiger Bestelllink: bitte prüfen und oben ergänzen."}
+                </p>
+                {(p.procurement_links || []).map((link: string) => (
+                  <a
+                    key={link}
+                    href={link}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="block underline break-all"
+                  >
+                    {link}
+                  </a>
+                ))}
+              </div>
+              <label className="commerce-field">
+                Zielgruppe
+                <select
+                  name="gender"
+                  className="commerce-input"
+                  defaultValue={p.gender || ""}
+                >
+                  <option value="">Unbekannt</option>
+                  <option value="men">Herren</option>
+                  <option value="women">Damen</option>
+                  <option value="unisex">Unisex</option>
+                </select>
+              </label>
+            </div>
+            <label className="commerce-field">
+              Beschreibung
+              <textarea
+                rows={4}
+                className="commerce-input"
+                name="description"
+                defaultValue={p.description}
+              />
+            </label>
+            <label className="commerce-field">
+              Kategorien
+              <select
+                multiple
+                size={7}
+                className="commerce-input"
+                name="categories"
+                defaultValue={p.category_ids}
+              >
+                {data?.categories?.map((c: any) => (
+                  <option key={c.id} value={c.id}>
+                    {c.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="space-y-4">
+              <h3 className="commerce-eyebrow">Varianten und Einkaufspreise</h3>
+              {p.variants.map((v: any) => (
+                <div
+                  key={v.id}
+                  className="grid grid-cols-2 md:grid-cols-3 gap-3 border border-border p-4"
+                >
+                  {[
+                    ["size", "Größe"],
+                    ["color", "Farbe"],
+                    ["sku", "Lieferanten-SKU"],
+                  ].map(([key, label]) => (
+                    <label className="commerce-field" key={key}>
+                      {label}
+                      <input
+                        className="commerce-input w-full"
+                        name={`${key}_${v.id}`}
+                        defaultValue={v[key]}
+                      />
+                    </label>
+                  ))}
+                  <label className="commerce-field">
+                    Einkauf CNY
+                    <input
+                      className="commerce-input w-full"
+                      name={`price_${v.id}`}
+                      type="number"
+                      step="0.01"
+                      min="0.01"
+                      defaultValue={
+                        v.purchase_fen ? Number(v.purchase_fen) / 100 : ""
+                      }
+                    />
+                  </label>
+                  <label className="commerce-field">
+                    Verfügbarkeit
+                    <select
+                      className="commerce-input"
+                      name={`availability_${v.id}`}
+                      defaultValue={v.availability}
+                    >
+                      <option value="review">Prüfen</option>
+                      <option value="available">Bestellbar</option>
+                      <option value="unavailable">Nicht lieferbar</option>
+                    </select>
+                  </label>
+                  <label className="text-xs flex gap-2 items-center">
+                    <input
+                      type="checkbox"
+                      name={`approved_${v.id}`}
+                      defaultChecked={v.price_approved}
+                    />
+                    Preis geprüft
+                  </label>
+                  <button
+                    type="button"
+                    className="text-xs underline text-left text-red-400"
+                    onClick={() => removeVariant(v)}
+                  >
+                    Variante entfernen
+                  </button>
                 </div>
               ))}
-              <div className="flex gap-2 pt-2">
-                <button
-                  onClick={saveEdit}
-                  className="flex-1 px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium"
-                >
-                  Save
-                </button>
-                <button
-                  onClick={() => setEditing(null)}
-                  className="px-4 py-2 rounded-md border border-border text-sm"
-                >
-                  Cancel
-                </button>
-              </div>
+              {!p.variants.length && (
+                <p className="text-sm text-muted-foreground">
+                  Keine Varianten. Lege unten Farben und Größen an.
+                </p>
+              )}
             </div>
+            <label className="commerce-field">
+              Veröffentlichung
+              <select
+                className="commerce-input"
+                name="publication"
+                defaultValue={p.publication}
+              >
+                <option value="draft">Entwurf</option>
+                <option value="review">Prüfen</option>
+                <option value="published">Veröffentlicht</option>
+                <option value="archived">Archiviert</option>
+              </select>
+            </label>
+            <button className="commerce-button" disabled={busy}>
+              {busy ? "Wird gespeichert …" : "Produkt speichern"}
+            </button>
+          </form>
+          <form
+            className="flex flex-wrap gap-3 border-t border-border pt-5"
+            onSubmit={async (e) => {
+              e.preventDefault();
+              const f = new FormData(e.currentTarget);
+              try {
+                await api(
+                  `products/${id}`,
+                  {
+                    variants: [
+                      {
+                        size: f.get("size"),
+                        color: f.get("color"),
+                        sku: f.get("sku"),
+                        availability: "review",
+                        price_approved: false,
+                      },
+                    ],
+                  },
+                  "PATCH",
+                );
+                await reload();
+              } catch (e) {
+                setFailure((e as Error).message);
+              }
+            }}
+          >
+            <input
+              className="commerce-input flex-1 min-w-24"
+              name="size"
+              placeholder="Neue Größe"
+              aria-label="Neue Größe"
+            />
+            <input
+              className="commerce-input flex-1 min-w-24"
+              name="color"
+              placeholder="Farbe"
+              aria-label="Farbe"
+            />
+            <input
+              className="commerce-input flex-1 min-w-24"
+              name="sku"
+              placeholder="SKU"
+              aria-label="SKU"
+            />
+            <button className="commerce-button secondary">
+              Variante ergänzen
+            </button>
+          </form>
+          <form
+            className="space-y-3 border border-border p-4"
+            onSubmit={async (e) => {
+              e.preventDefault();
+              const f = new FormData(e.currentTarget);
+              await run(async () => {
+                const r = await api(`products/${id}/variants/generate`, {
+                  colors: f.get("colors"),
+                  sizes: f.get("sizes"),
+                  purchase_cny: f.get("purchase_cny"),
+                  replace: f.get("replace") === "on",
+                });
+                setNote(
+                  `${r.created} Variante(n) angelegt${r.hidden_in_orders ? `, ${r.hidden_in_orders} bestellte Variante(n) auf „Nicht lieferbar" gesetzt` : ""}. Bitte Preis und Verfügbarkeit prüfen.`,
+                );
+              });
+            }}
+          >
+            <h3 className="commerce-eyebrow">Farben × Größen anlegen</h3>
+            <p className="text-xs text-muted-foreground">
+              Mit Komma trennen, zum Beispiel Farben „Schwarz, Weiß" und Größen
+              „S, M, L, XL". Es entsteht jede Kombination. Neue Varianten sind
+              zuerst auf „Prüfen".
+            </p>
+            <div className="grid md:grid-cols-3 gap-3">
+              <label className="commerce-field">
+                Farben
+                <input className="commerce-input w-full" name="colors" />
+              </label>
+              <label className="commerce-field">
+                Größen
+                <input className="commerce-input w-full" name="sizes" />
+              </label>
+              <label className="commerce-field">
+                Einkauf CNY (optional)
+                <input
+                  className="commerce-input w-full"
+                  name="purchase_cny"
+                  type="number"
+                  step="0.01"
+                  min="0.01"
+                />
+              </label>
+            </div>
+            <label className="text-xs flex gap-2 items-center">
+              <input type="checkbox" name="replace" />
+              Bisherige Varianten ersetzen (auch Platzhalter wie „Noch
+              festzulegen")
+            </label>
+            <button className="commerce-button secondary">
+              Varianten erzeugen
+            </button>
+          </form>
+          <div className="grid grid-cols-3 md:grid-cols-5 gap-3">
+            {!p.media.length && (
+              <p className="col-span-full text-sm text-muted-foreground">
+                Keine Bilder. Füge unten eine Bild-URL hinzu.
+              </p>
+            )}
+            {p.media.map((m: any, i: number) => (
+              <div key={m.id} className="space-y-1">
+                <img
+                  src={m.url}
+                  alt={m.alt}
+                  className="aspect-square object-cover w-full"
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  {i === 0 ? "Titelbild · " : ""}
+                  {m.kind === "size_chart"
+                    ? "Größentabelle"
+                    : m.kind === "ai_model"
+                      ? "KI-Modellbild"
+                      : "Produktfoto"}
+                </p>
+                <div className="flex flex-wrap gap-x-3 gap-y-1">
+                  <button
+                    type="button"
+                    className="text-xs underline"
+                    disabled={!i}
+                    onClick={() => {
+                      const media = [...p.media];
+                      const [moved] = media.splice(i, 1);
+                      saveGallery([moved, ...media]);
+                    }}
+                  >
+                    Als Titelbild
+                  </button>
+                  <button
+                    type="button"
+                    className="text-xs underline"
+                    disabled={!i}
+                    onClick={() => {
+                      const media = [...p.media];
+                      [media[i - 1], media[i]] = [media[i], media[i - 1]];
+                      saveGallery(media);
+                    }}
+                  >
+                    Nach vorn
+                  </button>
+                  <button
+                    type="button"
+                    className="text-xs underline"
+                    onClick={() =>
+                      saveGallery(
+                        p.media.map((x: any) =>
+                          x.id === m.id
+                            ? {
+                                ...x,
+                                kind:
+                                  x.kind === "size_chart"
+                                    ? "product"
+                                    : "size_chart",
+                              }
+                            : x,
+                        ),
+                      )
+                    }
+                  >
+                    {m.kind === "size_chart"
+                      ? "Als Produktfoto"
+                      : "Als Größentabelle"}
+                  </button>
+                  <button
+                    type="button"
+                    className="text-xs underline text-red-400"
+                    onClick={() => removeImage(m)}
+                  >
+                    Löschen
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
-        )}
+          <form
+            className="space-y-3"
+            onSubmit={async (e) => {
+              e.preventDefault();
+              const f = new FormData(e.currentTarget);
+              try {
+                await api(`products/${id}/media`, {
+                  url: f.get("url"),
+                  alt: f.get("alt"),
+                  kind: f.get("kind"),
+                  position: p.media.length,
+                });
+                await reload();
+              } catch (e) {
+                setFailure((e as Error).message);
+              }
+            }}
+          >
+            <label className="commerce-field">
+              Bild-URL von freigegebener Lieferantenquelle
+              <input
+                className="commerce-input"
+                name="url"
+                type="url"
+                required
+              />
+            </label>
+            <label className="commerce-field">
+              Bildbeschreibung
+              <input
+                className="commerce-input"
+                name="alt"
+                defaultValue={p.title}
+              />
+            </label>
+            <select className="commerce-input" name="kind" aria-label="Bildtyp">
+              <option value="product">Produktfoto</option>
+              <option value="size_chart">Größentabelle</option>
+            </select>
+            <button className="commerce-button secondary ml-3">
+              Bild ergänzen
+            </button>
+          </form>
+          {p.visibility === "private" && (
+            <button
+              className="commerce-button secondary"
+              onClick={async () => {
+                try {
+                  await api(`products/${id}/publish-copy`, {});
+                  onSaved();
+                  onClose();
+                } catch (e) {
+                  setFailure((e as Error).message);
+                }
+              }}
+            >
+              Als Shop-Entwurf kopieren
+            </button>
+          )}
+        </>
+      )}
+    </section>
+  );
+}
+export default function Products() {
+  const [showArchived, setShowArchived] = useState(false);
+  const [mergeIds, setMergeIds] = useState<number[]>([]);
+  const [page, setPage] = useState(1),
+    [search, setSearch] = useState("");
+  const { data, error, reload } = useData(
+      `products?scope=admin&archived=${showArchived ? 1 : 0}&page=${page}&search=${encodeURIComponent(search)}`,
+    ),
+    [selected, setSelected] = useState<number | null>(null),
+    [failure, setFailure] = useState("");
+  return (
+    <ShopShell>
+      <div className="flex justify-between items-end mb-8 gap-4">
+        <div>
+          <p className="commerce-eyebrow">Administration</p>
+          <h1 className="commerce-title">Produkte</h1>
+        </div>
+        <div className="flex flex-wrap gap-3">
+          <Link href="/admin/listing" className="commerce-button">
+            Mit KI-Assistent anlegen
+          </Link>
+          <button
+            className="commerce-button secondary"
+            onClick={async () => {
+              try {
+                const d = await api("products", { title: "Neues Produkt" });
+                setSelected(d.id);
+                await reload();
+              } catch (e) {
+                setFailure((e as Error).message);
+              }
+            }}
+          >
+            Leeres Produkt anlegen
+          </button>
+        </div>
       </div>
+      <Notice error={error || failure} />
+      <input
+        className="commerce-input w-full mb-6"
+        aria-label="Produkte im Backend suchen"
+        placeholder="Produkt oder Marke suchen"
+        value={search}
+        onChange={(e) => {
+          setSearch(e.target.value);
+          setPage(1);
+        }}
+      />
+      <label className="mb-5 flex items-center gap-2 text-sm">
+        <input
+          type="checkbox"
+          checked={showArchived}
+          onChange={(e) => {
+            setShowArchived(e.target.checked);
+            setPage(1);
+          }}
+        />
+        Archivierte Artikel anzeigen
+      </label>
+      {selected && (
+        <div className="mb-8">
+          <ProductEditor
+            id={selected}
+            onClose={() => setSelected(null)}
+            onSaved={() => void reload()}
+          />
+        </div>
+      )}
+      {mergeIds.length > 1 && (
+        <form
+          className="commerce-panel my-6 flex flex-wrap gap-4 items-center"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            try {
+              await api(`products/${mergeIds[0]}/merge`, {
+                source_ids: mergeIds.slice(1),
+              });
+              setMergeIds([]);
+              await reload();
+            } catch (e) {
+              setFailure((e as Error).message);
+            }
+          }}
+        >
+          <label className="text-sm flex gap-2">
+            <input type="checkbox" required />
+            Ich habe geprüft: Diese Ansichten zeigen dasselbe Produkt.
+          </label>
+          <button className="commerce-button secondary">
+            {mergeIds.length} Ansichten zu einer Galerie zusammenführen
+          </button>
+        </form>
+      )}
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="text-left text-xs text-muted-foreground border-b border-border">
+            <tr>
+              <th className="p-3">Auswahl / Produkt</th>
+              <th>Status</th>
+              <th>Varianten</th>
+              <th>Kundenpreis</th>
+              <th>Aktion</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data?.products.map((p: any) => (
+              <tr className="border-b border-border" key={p.id}>
+                <td className="p-3 min-w-48">
+                  <label className="flex gap-3">
+                    <input
+                      type="checkbox"
+                      aria-label={`${p.title} für Galerie auswählen`}
+                      checked={mergeIds.includes(p.id)}
+                      onChange={(e) =>
+                        setMergeIds(
+                          e.target.checked
+                            ? [...mergeIds, p.id]
+                            : mergeIds.filter((id) => id !== p.id),
+                        )
+                      }
+                    />
+                    <span>{p.title}</span>
+                  </label>
+                  <small className="text-muted-foreground">
+                    {p.brand} · {p.visibility === "private" ? "Privat" : "Shop"}
+                  </small>
+                </td>
+                <td>
+                  <Status value={p.publication} />
+                </td>
+                <td>{p.variants.length}</td>
+                <td>{eur(p.variants[0]?.price_cents)}</td>
+                <td>
+                  <div className="flex gap-4">
+                    <button
+                      className="underline"
+                      onClick={() => setSelected(p.id)}
+                    >
+                      Bearbeiten
+                    </button>
+                    <Link
+                      href={`/shop/product/${p.id}`}
+                      className="text-muted-foreground"
+                    >
+                      Ansehen
+                    </Link>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <Pager page={page} total={data?.total || 0} onChange={setPage} />
     </ShopShell>
   );
 }

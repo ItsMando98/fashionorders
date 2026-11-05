@@ -25,7 +25,7 @@ export function getSql(): Sql {
 // und fuehrt kleine Migrationen aus. Laeuft genau einmal pro Prozess.
 export function ensureDb(): Promise<void> {
   if (!initPromise) {
-    initPromise = ensureSchema(getSql()).catch((err) => {
+    initPromise = (process.env.SCHEMA_MANAGED === '1' ? Promise.resolve() : ensureSchema(getSql())).catch((err) => {
       initPromise = null; // naechster Aufruf darf es erneut versuchen
       throw err;
     });

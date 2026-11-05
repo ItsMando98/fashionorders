@@ -1,3 +1,4 @@
+import { enabled as commerceEnabled } from "@/lib/commerce/core";
 import { NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/server/auth";
 import { errorResponse, tooManyAttempts } from "@/lib/server/http";
@@ -9,6 +10,7 @@ import { scrapeToProduct } from "@/lib/server/products";
 // globalen Katalog an (Dedupe ueber source_url). Der Kunde sieht davon
 // nichts — Seller-Infos bleiben Admin-only.
 export async function POST(request: Request) {
+  if (commerceEnabled()) return NextResponse.json({detail:"Bitte den neuen Shop-/Importablauf verwenden."},{status:409});
   const user = await getAuthUser(request);
   if (!user) {
     return NextResponse.json({ detail: "Not authenticated" }, { status: 401 });

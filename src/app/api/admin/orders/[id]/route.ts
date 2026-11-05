@@ -1,3 +1,5 @@
+import { enabled as commerceEnabled } from "@/lib/commerce/core";
+import { commerceRoute } from "@/lib/commerce/api";
 import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { getAuthUser } from "@/lib/server/auth";
@@ -19,6 +21,7 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  if (commerceEnabled()) return commerceRoute(request, ['admin', 'orders', (await params).id]);
   const user = await getAuthUser(request);
   if (!user || user.role !== "admin") {
     return NextResponse.json({ detail: "Admin access required" }, { status: 403 });

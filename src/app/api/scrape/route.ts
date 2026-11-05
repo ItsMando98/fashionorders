@@ -1,3 +1,5 @@
+import { enabled as commerceEnabled } from "@/lib/commerce/core";
+import { queueImports } from "@/lib/commerce/imports";
 import { NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/server/auth";
 import { errorResponse, tooManyAttempts } from "@/lib/server/http";
@@ -20,6 +22,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ detail: "URL is required" }, { status: 400 });
     }
 
+    if (commerceEnabled()) return NextResponse.json({jobs:await queueImports(user,[url])},{status:202});
     const settings = await getFeeSettings();
     const result = await scrapeAnyUrl(url, settings.cny_to_eur);
     return NextResponse.json(result);

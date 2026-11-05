@@ -1,3 +1,4 @@
+import { enabled as commerceEnabled } from "@/lib/commerce/core";
 import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { getAuthUser } from "@/lib/server/auth";
@@ -8,6 +9,7 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  if (commerceEnabled()) return NextResponse.json({detail:"Bitte den neuen Shop-/Importablauf verwenden."},{status:409});
   const user = await getAuthUser(request);
   if (!user) {
     return NextResponse.json({ detail: "Not authenticated" }, { status: 401 });
@@ -74,6 +76,7 @@ export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  if (commerceEnabled()) return NextResponse.json({detail:"Bitte den neuen Shop-/Importablauf verwenden."},{status:409});
   const user = await getAuthUser(request);
   if (!user) {
     return NextResponse.json({ detail: "Not authenticated" }, { status: 401 });
